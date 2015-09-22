@@ -108,7 +108,8 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 					if(header.getContentLength()==0)
 					{
 						// Process POST data based on what our incoming content type is
-						if(m_environment.requestMethod == Http::HTTP_METHOD_POST)
+						if(m_environment.requestMethod == Http::HTTP_METHOD_POST or
+						   m_environment.requestMethod == Http::HTTP_METHOD_PUT)
 						{
 							const char multipart[] = "multipart/form-data";
 							const char urlEncoded[] = "application/x-www-form-urlencoded";
