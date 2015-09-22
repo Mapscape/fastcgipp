@@ -106,7 +106,7 @@ namespace Fastcgipp
 		};
 		extern const char* requestMethodLabels[];
 		template<class charT, class Traits> inline std::basic_ostream<charT, Traits>& operator<<(std::basic_ostream<charT, Traits>& os, const RequestMethod requestMethod) { return os << requestMethodLabels[requestMethod]; }
-	
+
 		//! Efficiently stores IPv6 addresses
 		/*!
 		 * This class stores IPv6 addresses as a 128 bit array. It does this as
@@ -242,6 +242,8 @@ namespace Fastcgipp
 			uint16_t remotePort;
 			//! Timestamp the client has for this document
 			boost::posix_time::ptime ifModifiedSince;
+			//! Unmatched environment variables
+			std::map<std::basic_string<charT>, std::basic_string<charT> > unmatchedEnvVariables;
 
 			typedef std::map<std::basic_string<charT>, std::basic_string<charT> > Cookies;
 			//! Container with all url-encoded cookie data
@@ -368,7 +370,7 @@ namespace Fastcgipp
 		int atoi(const char* start, const char* end);
 
 		//! Decodes a url-encoded string into a container
-		/*! 
+		/*!
 		 * @param[in] data Data to decode
 		 * @param[in] size Size of data to decode
 		 * @param[out] output Container to output data into
@@ -379,7 +381,7 @@ namespace Fastcgipp
 
 		//! Convert a string with percent escaped byte values to their actual values
 		/*!
-		 *	Since converting a percent escaped string to actual values can only make it shorter, 
+		 *	Since converting a percent escaped string to actual values can only make it shorter,
 		 *	it is safe to assume that the return value will always be smaller than size. It is
 		 *	thereby a safe move to make the destination block of memory the same size as the source.
 		 *
@@ -390,12 +392,12 @@ namespace Fastcgipp
 		 */
 		size_t percentEscapedToRealBytes(const char* source, char* destination, size_t size);
 
-		/** 
+		/**
 		 * @brief List of characters in order for Base64 encoding.
 		 */
 		extern const char base64Characters[];
 
-		/** 
+		/**
 		 * @brief Convert a binary container of data to a Base64 encoded container.
 		 *
 		 * If destination is a fixed size container, it should have a size of at least ((end-start-1)/3 + 1)*4 not including null terminators if used and assuming integer arithmetic.
@@ -409,53 +411,53 @@ namespace Fastcgipp
 		 */
 		template<class In, class Out> void base64Encode(In start, In end, Out destination);
 
-		/** 
+		/**
 		 * @brief Convert a Base64 encoded container to a binary container.
 		 *
 		 * If destination is a fixed size container, it should have a size of
 		 * at least (end-start)*3/4 not including null terminators if used.
-		 * 
+		 *
 		 * @param[in] start Iterator to start of Base64 data.
 		 * @param[in] end Iterator to end of Base64 data.
 		 * @param[out] destination Iterator to start of binary destination.
 		 *
 		 * @tparam In Input iterator type. Should be dereferenced to type char.
 		 * @tparam Out Output iterator type. Should be dereferenced to type char.
-		 * 
+		 *
 		 * @return Iterator to last position written+1 (The normal end() iterator). If
 		 * the return value equals destination, an error occurred.
 		 */
 		template<class In, class Out> Out base64Decode(In start, In end, Out destination);
 
-		/** 
+		/**
 		 * @brief Defines ID values for HTTP sessions.
 		 */
 		class SessionId
 		{
-			/** 
+			/**
 			 * @brief Size in bytes of the ID data
 			 */
 			public: static const int size=12;
 
 		private:
-			/** 
+			/**
 			 * @brief ID data
 			 */
 			char data[size];
 
-			/** 
+			/**
 			 * @brief Contains the time this session was last used
 			 */
 			boost::posix_time::ptime timestamp;
 
-			/** 
+			/**
 			 * @brief Set to true once the random number generator has been seeded
 			 */
 			static bool seeded;
 
 			template<class T> friend class Sessions;
 		public:
-			/** 
+			/**
 			 * @brief The default constructor initializes the ID data to a random value
 			 */
 			SessionId();
@@ -463,21 +465,21 @@ namespace Fastcgipp
 			SessionId(const SessionId& x): timestamp(x.timestamp) { std::memcpy(data, x.data, size); }
 			const SessionId& operator=(const SessionId& x) { std::memcpy(data, x.data, size); timestamp=x.timestamp; return *this; }
 
-			/** 
+			/**
 			 * @brief Assign the ID data with a base64 encoded string
 			 *
 			 * Note that only size*4/3 bytes will be read from the string.
-			 * 
+			 *
 			 * @param data_ Iterator set at begin of base64 encoded string
 			 */
 			template<class charT> const SessionId& operator=(charT* data_);
 
-			/** 
+			/**
 			 * @brief Initialize the ID data with a base64 encoded string
-			 * 
+			 *
 			 * Note that only size*4/3 bytes will be read from the string.
-			 * 
-			 * @param data_ 
+			 *
+			 * @param data_
 			 */
 			template<class charT> SessionId(charT* data_) { *this=data_; }
 
@@ -486,7 +488,7 @@ namespace Fastcgipp
 			bool operator<(const SessionId& x) const { return std::memcmp(data, x.data, SessionId::size)<0; }
 			bool operator==(const SessionId& x) const { return std::memcmp(data, x.data, SessionId::size)==0; }
 
-			/** 
+			/**
 			 * @brief Resets the last access timestamp to the current time.
 			 */
 			void refresh() const { *const_cast<boost::posix_time::ptime*>(&timestamp)=boost::posix_time::second_clock::universal_time(); }
@@ -494,12 +496,12 @@ namespace Fastcgipp
 			const char* getInternalPointer() const { return data; }
 		};
 
-		/** 
+		/**
 		 * @brief Output the ID data in base64 encoding
 		 */
 		template<class charT, class Traits> std::basic_ostream<charT, Traits>& operator<<(std::basic_ostream<charT, Traits>& os, const SessionId& x) { base64Encode(x.data, x.data+SessionId::size, std::ostream_iterator<charT, charT, Traits>(os)); return os; }
 
-		/** 
+		/**
 		 * @brief Container for HTTP sessions
 		 *
 		 *	In almost all ways this class behaves like an std::map. The sole addition is a mechanism for
@@ -512,43 +514,43 @@ namespace Fastcgipp
 		template<class T> class Sessions: public std::map<SessionId, T>
 		{
 		private:
-			/** 
+			/**
 			 * @brief Amount of seconds to keep sessions around for.
 			 */
 			const boost::posix_time::seconds keepAlive;
 
-			/** 
+			/**
 			 * @brief How often (in seconds) the container should find old sessions and delete them.
 			 */
 			const boost::posix_time::seconds cleanupFrequency;
 
-			/** 
+			/**
 			 * @brief The time that the next session cleanup should be done.
 			 */
 			boost::posix_time::ptime cleanupTime;
 		public:
 			typedef typename std::map<SessionId, T>::iterator iterator;
 			typedef typename std::map<SessionId, T>::const_iterator const_iterator;
-			/** 
+			/**
 			 * @brief Constructor takes session keep alive times and cleanup frequency.
-			 * 
+			 *
 			 * @param[in] keepAlive_ Amount of seconds a session will stay alive for.
 			 * @param[in] cleanupFrequency_ How often (in seconds) the container should find old sessions and delete them.
 			 */
 			Sessions(int keepAlive_, int cleanupFrequency_): keepAlive(boost::posix_time::seconds(keepAlive_)), cleanupFrequency(boost::posix_time::seconds(cleanupFrequency_)), cleanupTime(boost::posix_time::second_clock::universal_time()+cleanupFrequency) { }
-				
-			/** 
+
+			/**
 			 * @brief Clean out old sessions.
 			 *
 			 * Calling this function will clear out any expired sessions from the container. This function must be called for any cleanup to take place, however calling may not actually cause a cleanup. The amount of seconds specified in cleanupFrequency must have expired since the last cleanup for it to actually take place.
 			 */
 			void cleanup();
 
-			/** 
+			/**
 			 * @brief Generates a new session pair with a random ID value
-			 * 
+			 *
 			 * @param[in] value_ Value to place into the data section.
-			 * 
+			 *
 			 * @return Iterator pointing to the newly created session.
 			 */
 			iterator generate(const T& value_ = T());
@@ -628,7 +630,7 @@ template<class In, class Out> void Fastcgipp::Http::base64Encode(In start, In en
 			padded=-6;
 			while(bitPos!=-8)
 			{
-				if(start!=end) 
+				if(start!=end)
 					buffer |= (uint32_t)*(unsigned char*)start++ << bitPos;
 				else padded+=6;
 				bitPos-=8;
