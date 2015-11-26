@@ -117,7 +117,6 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(const char*
 		size-=value-data+valueSize;
 		data=value+valueSize;
 
-                bool isRead = true;
 		switch(nameSize)
 		{
 		case 9:
@@ -142,10 +141,6 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(const char*
 					}
 				}
 			}
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 11:
 			if(!memcmp(name, "HTTP_ACCEPT", 11))
@@ -164,10 +159,6 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(const char*
 				charToString(value, valueSize, scriptName);
 			else if(!memcmp(name, "REQUEST_URI", 11))
 				charToString(value, valueSize, requestUri);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 12:
 			if(!memcmp(name, "HTTP_REFERER", 12) && valueSize)
@@ -189,18 +180,10 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(const char*
 			}
 			else if(!memcmp(name, "QUERY_STRING", 12) && valueSize)
 				decodeUrlEncoded(value, valueSize, gets);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 13:
 			if(!memcmp(name, "DOCUMENT_ROOT", 13))
 				charToString(value, valueSize, root);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 14:
 			if(!memcmp(name, "REQUEST_METHOD", 14))
@@ -230,44 +213,24 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(const char*
 			}
 			else if(!memcmp(name, "CONTENT_LENGTH", 14))
 				contentLength=atoi(value, value+valueSize);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 15:
 			if(!memcmp(name, "HTTP_USER_AGENT", 15))
 				charToString(value, valueSize, userAgent);
 			else if(!memcmp(name, "HTTP_KEEP_ALIVE", 15))
 				keepAlive=atoi(value, value+valueSize);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 18:
 			if(!memcmp(name, "HTTP_IF_NONE_MATCH", 18))
 				etag=atoi(value, value+valueSize);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 19:
 			if(!memcmp(name, "HTTP_ACCEPT_CHARSET", 19))
 				charToString(value, valueSize, acceptCharsets);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 20:
 			if(!memcmp(name, "HTTP_ACCEPT_LANGUAGE", 20))
 				charToString(value, valueSize, acceptLanguages);
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		case 22:
 			if(!memcmp(name, "HTTP_IF_MODIFIED_SINCE", 22))
@@ -277,22 +240,19 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(const char*
 				dateStream.imbue(locale(locale::classic(), new posix_time::time_input_facet("%a, %d %b %Y %H:%M:%S GMT")));
 				dateStream >> ifModifiedSince;
 			}
-                        else
-                        {
-                            isRead = false;
-                        }
 			break;
 		default:
-                        isRead = false;
 			break;
 		}
-                if ( !isRead )
-		{
+
+                // copy all request environment variables to requestEnvVariables
+                if (!memcmp(name, "HTTP_", 5))
+                {
 			std::basic_string<charT> strName, strValue;
 			charToString(name, nameSize, strName);
 			charToString(value, valueSize, strValue);
-			unmatchedEnvVariables.insert(std::make_pair(strName, strValue));
-		}
+			requestEnvVariables.insert(std::make_pair(strName, strValue));
+                }
 	}}
 }
 

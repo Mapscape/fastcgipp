@@ -242,8 +242,9 @@ namespace Fastcgipp
 			uint16_t remotePort;
 			//! Timestamp the client has for this document
 			boost::posix_time::ptime ifModifiedSince;
-			//! Unmatched environment variables
-			std::map<std::basic_string<charT>, std::basic_string<charT> > unmatchedEnvVariables;
+
+			//! Container with all request environment variables (of the form "HTTP_*")
+			std::map<std::basic_string<charT>, std::basic_string<charT> > requestEnvVariables;
 
 			typedef std::map<std::basic_string<charT>, std::basic_string<charT> > Cookies;
 			//! Container with all url-encoded cookie data

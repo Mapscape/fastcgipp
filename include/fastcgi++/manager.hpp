@@ -178,6 +178,7 @@ namespace Fastcgipp
 	template<class T> class Manager: public ManagerPar
 	{
 	public:
+	    typedef boost::function<T*()> RequestCreatorCallback;
 		//! Construct from a file descriptor
 		/*!
 		 * The only piece of data required to construct a %Manager object is a
@@ -221,6 +222,11 @@ namespace Fastcgipp
 
 		//! Return the amount of pending requests
 		size_t getRequestsSize() const { return requests.size(); }
+		
+		void setRequestCreatorCallback(RequestCreatorCallback callback)
+		{
+		    m_requestCreatorCallback = callback;
+		}
 	private:
 		//! Associative container type for active requests
 		/*!
@@ -234,6 +240,8 @@ namespace Fastcgipp
 		 * to the actual Request object.
 		 */
 		Requests requests;
+		
+		RequestCreatorCallback m_requestCreatorCallback;
 	};
 }
 
@@ -265,7 +273,15 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 				unique_lock<shared_mutex> reqWriteLock(requests);
 
 				boost::shared_ptr<T>& request = requests[id];
-				request.reset(new T);
+				
+				if (m_requestCreatorCallback)
+				{
+				    request.reset(m_requestCreatorCallback());
+				}
+				else
+				{
+				    request.reset(new T);
+				}
 				request->set(id, transceiver, body.getRole(), !body.getKeepConn(), boost::bind(&Manager::push, boost::ref(*this), id, _1));
 			}
 			else
