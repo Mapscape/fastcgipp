@@ -20,6 +20,7 @@
 
 
 #include <fastcgi++/transceiver.hpp>
+#include <boost/utility/in_place_factory.hpp>
 
 int Fastcgipp::Transceiver::transmit()
 {
@@ -31,12 +32,14 @@ int Fastcgipp::Transceiver::transmit()
 			ssize_t sent = write(sendBlock.fd, sendBlock.data, sendBlock.size);
 			if(sent<0)
 			{
-				if(errno==EPIPE || errno==EBADF)
+				if(errno!=EAGAIN)
 				{
 					freeFd(sendBlock.fd);
 					sent=sendBlock.size;
+
+					Exceptions::SocketWrite e(sendBlock.fd, errno);
+					m_lastSocketException = boost::in_place(e);
 				}
-				else if(errno!=EAGAIN) throw Exceptions::SocketWrite(sendBlock.fd, errno);
 			}
 
 			buffer.freeRead(sent);
@@ -66,7 +69,7 @@ bool Fastcgipp::Transceiver::handler()
 	using namespace std;
 	using namespace Protocol;
 
-	bool transmitEmpty=transmit();
+        bool transmitEmpty = transmit();
 
 	int retVal=poll(&pollFds.front(), pollFds.size(), 0);
 	if(retVal==0)
@@ -75,7 +78,7 @@ bool Fastcgipp::Transceiver::handler()
 		else return false;
 	}
 	if(retVal<0) throw Exceptions::SocketPoll(errno);
-	
+
 	std::vector<pollfd>::iterator pollFd = find_if(pollFds.begin(), pollFds.end(), reventsZero);
 
 	if(pollFd->revents & (POLLHUP|POLLERR|POLLNVAL) )
@@ -84,7 +87,7 @@ bool Fastcgipp::Transceiver::handler()
 		pollFds.erase(pollFd);
 		return false;
 	}
-	
+
 	int fd=pollFd->fd;
 	if(fd==socket)
 	{
@@ -92,7 +95,7 @@ bool Fastcgipp::Transceiver::handler()
 		socklen_t addrlen=sizeof(sockaddr_un);
 		fd=accept(fd, (sockaddr*)&addr, &addrlen);
 		fcntl(fd, F_SETFL, (fcntl(fd, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
-		
+
 		pollFds.push_back(pollfd());
 		pollFds.back().fd = fd;
 		pollFds.back().events = POLLIN|POLLHUP|POLLERR|POLLNVAL;
@@ -107,7 +110,7 @@ bool Fastcgipp::Transceiver::handler()
 		read(wakeUpFdIn, &x, 1);
 		return false;
 	}
-	
+
 	Message& messageBuffer=fdBuffers[fd].messageBuffer;
 	Header& headerBuffer=fdBuffers[fd].headerBuffer;
 
@@ -117,15 +120,13 @@ bool Fastcgipp::Transceiver::handler()
 	{
 		// Are we recieving a partial header or new?
 		actual=read(fd, (char*)&headerBuffer+messageBuffer.size, sizeof(Header)-messageBuffer.size);
-		if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
-		if(actual>0) messageBuffer.size+=actual;
-		
-		if( actual == 0 )
+		if ((actual<0 && errno != EAGAIN) || actual == 0)
 		{
-			fdBuffers.erase( pollFd->fd );
-			pollFds.erase( pollFd );
+			// An unrecoverable socket read error occurred; remove the socket
+			freeFd(fd);
 			return false;
 		}
+		if(actual>0) messageBuffer.size+=actual;
 
 		if(messageBuffer.size!=sizeof(Header))
 		{
@@ -140,12 +141,17 @@ bool Fastcgipp::Transceiver::handler()
 	const Header& header=*(const Header*)messageBuffer.data.get();
 	size_t needed=header.getContentLength()+header.getPaddingLength()+sizeof(Header)-messageBuffer.size;
 	actual=read(fd, messageBuffer.data.get()+messageBuffer.size, needed);
-	if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
+	if(actual<0 && errno != EAGAIN)
+	{
+		// An unrecoverable socket read error occurred; remove the socket
+		freeFd(fd);
+		return false;
+	}
 	if(actual>0) messageBuffer.size+=actual;
 
 	// Did we recieve a full frame?
 	if(actual==(ssize_t)needed)
-	{		
+	{
 		sendMessage(FullId(headerBuffer.getRequestId(), fd), messageBuffer);
 		messageBuffer.size=0;
 		messageBuffer.data.reset();
@@ -196,14 +202,14 @@ Fastcgipp::Transceiver::Transceiver(int fd_, boost::function<void(Protocol::Full
 :buffer(pollFds, fdBuffers), sendMessage(sendMessage_), pollFds(2), socket(fd_)
 {
 	socket=fd_;
-	
+
 	// Let's setup a in/out socket for waking up poll()
 	int socPair[2];
 	socketpair(AF_UNIX, SOCK_STREAM, 0, socPair);
 	wakeUpFdIn=socPair[0];
-	fcntl(wakeUpFdIn, F_SETFL, (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);	
-	wakeUpFdOut=socPair[1];	
-	
+	fcntl(wakeUpFdIn, F_SETFL, (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
+	wakeUpFdOut=socPair[1];
+
 	fcntl(socket, F_SETFL, (fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
 	pollFds[0].events = POLLIN|POLLHUP;
 	pollFds[0].fd = socket;
@@ -250,6 +256,10 @@ Fastcgipp::Exceptions::SocketWrite::SocketWrite(int fd_, int erno_): Socket(fd_,
 		case EPIPE:
 			msg = "The file descriptor is connected to a pipe or socket whose reading end is closed.  When this happens the writing process will also receive a SIGPIPE signal.  (Thus, the write return value is seen only if the program catches, blocks or ignores this signal.)";
 			break;
+
+		default:
+			msg = "Unknown error";
+			break;
 	}
 }
 
@@ -284,6 +294,10 @@ Fastcgipp::Exceptions::SocketRead::SocketRead(int fd_, int erno_): Socket(fd_, e
 		case EISDIR:
 			msg = "The file descriptor refers to a directory.";
 			break;
+
+		default:
+			msg = "Unknown error";
+			break;
 	}
 }
 
@@ -309,6 +323,10 @@ Fastcgipp::Exceptions::SocketPoll::SocketPoll(int erno_): CodedException(0, erno
 
 		case ENOMEM:
 			msg = "There was no space to allocate file descriptor tables.";
+			break;
+
+		default:
+			msg = "Unknown error";
 			break;
 	}
 }

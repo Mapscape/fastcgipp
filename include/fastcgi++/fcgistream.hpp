@@ -36,7 +36,7 @@ namespace Fastcgipp
 	//! Defines how Fcgistream objects encode output textual data.
 	/*!
 	 * When output encoding is set to NONE, no character translation takes place.
-	 * HTML and URL encoding is described by the following table. 
+	 * HTML and URL encoding is described by the following table.
 	 *
 	 * <b>HTML</b>
 	 * <table>
@@ -181,6 +181,24 @@ namespace Fastcgipp
 		void set(Protocol::FullId id, Transceiver &transceiver, Protocol::RecordType type) {m_id=id, m_type=type, m_transceiver=&transceiver;}
 		void dump(const char* data, size_t size) { write(data, size); }
 		void dump(std::basic_istream<char>& stream);
+
+		//! Throw an exception when the transceiver failed.
+		/*!
+		 * This is to workaround the default exception handling done by
+		 * boost::iostream::device, e.g. strict_sync()/sync() functions:
+		 * by generic catching the exception it is not possible to handle it at a
+		 * higher level (ie. FcgistreamSink).
+		 *
+		 * After calling this function any exception is reset on the transceiver.
+		 */
+		void throwExceptionWhenTransceiverFailed() {
+			boost::optional<Exceptions::Socket> e = m_transceiver->getLastSocketException();
+			if (e)
+			{
+				m_transceiver->resetLastSocketException();
+				throw *e;
+			}
+		}
 	};
 
 	//! Stream class for output of client data through FastCGI
@@ -203,7 +221,7 @@ namespace Fastcgipp
 			OutputEncoding m_state;
 			Encoder(): m_state(NONE) {}
 		};
-		
+
 		Encoder& m_encoder;
 
 		FcgistreamSink& m_sink;
@@ -214,8 +232,11 @@ namespace Fastcgipp
 		void set(Protocol::FullId id, Transceiver& transceiver, Protocol::RecordType type) { m_sink.set(id, transceiver, type); }
 
 		//! Called to flush all buffers to the sink
-		void flush() { boost::iostreams::filtering_stream<boost::iostreams::output, charT>::strict_sync(); }
-		
+		void flush() {
+			boost::iostreams::filtering_stream<boost::iostreams::output, charT>::strict_sync();
+			m_sink.throwExceptionWhenTransceiverFailed();
+                }
+
 		//! Dumps raw data directly into the FastCGI protocol
 		/*!
 		 * This function exists as a mechanism to dump raw data out the stream bypassing
@@ -225,7 +246,7 @@ namespace Fastcgipp
 		 * @param[in] data Pointer to first byte of data to send
 		 * @param[in] size Size in bytes of data to be sent
 		 */
-		void dump(const char* data, size_t size) { flush(); m_sink.dump(data, size); }
+		void dump(const char* data, size_t size) { flush(); m_sink.dump(data, size); m_sink.throwExceptionWhenTransceiverFailed(); }
 		//! Dumps an input stream directly into the FastCGI protocol
 		/*!
 		 * This function exists as a mechanism to dump a raw input stream out this stream bypassing
@@ -234,7 +255,7 @@ namespace Fastcgipp
 		 *
 		 * @param[in] stream Reference to input stream that should be transmitted.
 		 */
-		void dump(std::basic_istream<char>& stream) { flush(); m_sink.dump(stream); }
+		void dump(std::basic_istream<char>& stream) { flush(); m_sink.dump(stream); m_sink.throwExceptionWhenTransceiverFailed(); }
 
 		//! Sets the output encoding for this stream
 		/*!

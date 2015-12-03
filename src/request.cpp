@@ -36,7 +36,7 @@ template<class charT> void Fastcgipp::Request<charT>::complete()
 	header.setRequestId(id.fcgiId);
 	header.setContentLength(sizeof(EndRequest));
 	header.setPaddingLength(0);
-	
+
 	EndRequest& body=*(EndRequest*)(buffer.data+sizeof(Header));
 	body.setAppStatus(0);
 	body.setProtocolStatus(REQUEST_COMPLETE);
@@ -56,14 +56,14 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 		if(!(role()==RESPONDER || role()==AUTHORIZER))
 		{
 			Block buffer(transceiver->requestWrite(sizeof(Header)+sizeof(EndRequest)));
-			
+
 			Header& header=*(Header*)buffer.data;
 			header.setVersion(Protocol::version);
 			header.setType(END_REQUEST);
 			header.setRequestId(id.fcgiId);
 			header.setContentLength(sizeof(EndRequest));
 			header.setPaddingLength(0);
-			
+
 			EndRequest& body=*(EndRequest*)(buffer.data+sizeof(Header));
 			body.setAppStatus(0);
 			body.setProtocolStatus(UNKNOWN_ROLE);
@@ -87,7 +87,7 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 				case PARAMS:
 				{
 					if(state!=PARAMS) throw Exceptions::RecordsOutOfOrder();
-					if(header.getContentLength()==0) 
+					if(header.getContentLength()==0)
 					{
 						if(m_maxPostSize && environment().contentLength > m_maxPostSize)
 						{
@@ -159,6 +159,12 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 			complete();
 			return true;
 		}
+	}
+	catch(const Exceptions::Socket& e)
+	{
+		// Socket exceptions should not write to the socket (as the other type of exceptions do).
+		std::cerr << "Socket exception: " << e.what() << std::endl;
+		return true;
 	}
 	catch(const std::exception& e)
 	{

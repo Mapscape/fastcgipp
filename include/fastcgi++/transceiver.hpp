@@ -33,6 +33,7 @@
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <boost/shared_array.hpp>
+#include <boost/optional.hpp>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -43,11 +44,58 @@
 #include <signal.h>
 
 #include <fastcgi++/protocol.hpp>
-#include <fastcgi++/exceptions.hpp>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
+	namespace Exceptions
+	{
+		//! General exception for socket related errors
+		struct Socket: public CodedException
+		{
+			//! Sole Constructor
+			/*!
+			 * @param[in] fd_ File descriptor of socket
+			 * @param[in] erno_ Associated errno
+			 */
+			Socket(const int& fd_, const int& erno_): CodedException(0, erno_), fd(fd_) { }
+			//! File descriptor of socket
+			const int fd;
+		};
+
+		//! %Exception for write errors to sockets
+		struct SocketWrite: public Socket
+		{
+			//! Sole Constructor
+			/*!
+			 * @param[in] fd_ File descriptor of socket
+			 * @param[in] erno_ Associated errno
+			 */
+			SocketWrite(int fd_, int erno_);
+		};
+
+		//! %Exception for read errors to sockets
+		struct SocketRead: public Socket
+		{
+			//! Sole Constructor
+			/*!
+			 * @param[in] fd_ File descriptor of socket
+			 * @param[in] erno_ Associated errno
+			 */
+			SocketRead(int fd_, int erno_);
+		};
+
+		//! %Exception for poll() errors
+		struct SocketPoll: public CodedException
+		{
+			//! Sole Constructor
+			/*!
+			 * @param[in] erno_ Associated errno
+			 */
+			SocketPoll(int erno_);
+		};
+	}
+
 	//! A raw block of memory
 	/*!
 	 * The purpose of this structure is to communicate a block of data to be written to
@@ -107,7 +155,7 @@ namespace Fastcgipp
 		{
 			poll(&pollFds.front(), pollFds.size(), -1);
 		}
-		
+
 		//! Forces a wakeup from a call to sleep()
 		void wake();
 
@@ -126,7 +174,7 @@ namespace Fastcgipp
 		 * This buffer is implemented as a circle of Chunk objects; the number of which can grow and shrink as needed. Write
 		 * space is requested with requestWrite() which thereby returns a Block which may be smaller
 		 * than requested. The write is committed by calling secureWrite(). A smaller space can be
-		 * committed than was given to write on. 
+		 * committed than was given to write on.
 		 *
 		 * All data written to the buffer has an associated file descriptor through which it
 		 * is flushed. File descriptor association with data is managed through a queue of Frame
@@ -166,9 +214,9 @@ namespace Fastcgipp
 				char* end;
 				//! Creates a new data chunk
 				Chunk(): data(new char[size]), end(data.get()) { }
-				~Chunk() { } 
+				~Chunk() { }
 				//! Creates a new object that shares the data of the old one
-				Chunk(const Chunk& chunk): data(chunk.data), end(data.get()) { } 
+				Chunk(const Chunk& chunk): data(chunk.data), end(data.get()) { }
 			};
 
 			//! A list of chunks. Can contain from 2-infinity
@@ -258,7 +306,7 @@ namespace Fastcgipp
 		Buffer buffer;
 		//! Function to call to pass messages to requests
 		boost::function<void(Protocol::FullId, Message)> sendMessage;
-		
+
 		//! poll() file descriptors container
 		std::vector<pollfd> pollFds;
 		//! Socket to listen for connections on
@@ -267,12 +315,15 @@ namespace Fastcgipp
 		int wakeUpFdIn;
 		//! Output file descriptor to the wakeup socket pair
 		int wakeUpFdOut;
-		
+
 		//! Container associating file descriptors with their receive buffers
 		std::map<int, fdBuffer> fdBuffers;
-		
+
 		//! Transmit all buffered data possible
 		int transmit();
+
+		//! Store the last socket exception
+		boost::optional<Exceptions::Socket> m_lastSocketException;
 
 	public:
 		//! Free fd/pipe and all it's associated resources
@@ -290,8 +341,24 @@ namespace Fastcgipp
 
 		//! Helper function for freeFd(int fd, std::vector<pollfd> pollFds, std::map<int, fdBuffer> fdBuffers)
 		void freeFd(int fd_) { freeFd(fd_, pollFds, fdBuffers);  }
+
+		//! Reset the last socket exception to none.
+		void resetLastSocketException()
+		{
+			m_lastSocketException = boost::none;
+		}
+
+		//! Get the last socket exception
+		/*!
+		 * This can be used by the calling client to determine
+		 * if any exception occured while interacting with the socket.
+		 */
+		boost::optional<Exceptions::Socket> getLastSocketException() const
+		{
+			return m_lastSocketException;
+		}
 	};
-	
+
 	//! Predicate for comparing the file descriptor of a pollfd
 	struct equalsFd : public std::unary_function<pollfd, bool>
 	{
@@ -299,59 +366,11 @@ namespace Fastcgipp
 		explicit equalsFd(int fd_): fd(fd_) {}
 		bool operator()(const pollfd& x) const { return x.fd==fd; };
 	};
-	
+
 	//! Predicate for testing if the revents in a pollfd is non-zero
 	inline bool reventsZero(const pollfd& x)
 	{
 		return x.revents;
-	}
-
-	namespace Exceptions
-	{
-		//! General exception for socket related errors
-		struct Socket: public CodedException
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] fd_ File descriptor of socket
-			 * @param[in] erno_ Associated errno
-			 */
-			Socket(const int& fd_, const int& erno_): CodedException(0, erno_), fd(fd_) { }
-			//! File descriptor of socket
-			const int fd;
-		};
-		
-		//! %Exception for write errors to sockets
-		struct SocketWrite: public Socket
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] fd_ File descriptor of socket
-			 * @param[in] erno_ Associated errno
-			 */
-			SocketWrite(int fd_, int erno_);
-		};
-		
-		//! %Exception for read errors to sockets
-		struct SocketRead: public Socket
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] fd_ File descriptor of socket
-			 * @param[in] erno_ Associated errno
-			 */
-			SocketRead(int fd_, int erno_);
-		};
-		
-		//! %Exception for poll() errors
-		struct SocketPoll: public CodedException
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] erno_ Associated errno
-			 */
-			SocketPoll(int erno_);
-		};
 	}
 }
 
