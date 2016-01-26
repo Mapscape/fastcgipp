@@ -194,7 +194,7 @@ namespace Fastcgipp
 		void throwExceptionWhenTransceiverFailed() {
 			boost::optional<Exceptions::Socket> e = m_transceiver->getLastSocketException();
 			if (e)
-			{
+		 	{
 				m_transceiver->resetLastSocketException();
 				throw *e;
 			}

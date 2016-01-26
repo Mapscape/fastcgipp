@@ -22,6 +22,7 @@
 #ifndef MANAGER_HPP
 #define MANAGER_HPP
 
+#include <list>
 #include <map>
 #include <string>
 #include <queue>
@@ -93,7 +94,7 @@ namespace Fastcgipp
 		 * @sa signalHandler()
 		 */
 		void terminate();
-		
+
 		//! Configure the handlers for POSIX signals
 		/*!
 		 * By calling this function appropriate handlers will be set up for SIGPIPE, SIGUSR1 and
@@ -116,7 +117,7 @@ namespace Fastcgipp
 		 * This is merely a derivation of a std::queue<Protocol::FullId> and a
 		 * boost::mutex that gives data locking abilities to the STL container.
 		 */
-		class Tasks: public std::queue<Protocol::FullId>, public boost::mutex {};
+		class Tasks: public std::list<Protocol::FullId>, public boost::mutex {};
 		//! Queue for pending tasks
 		/*!
 		 * This contains a queue of Protocol::FullId that need their handlers called.
@@ -163,7 +164,7 @@ namespace Fastcgipp
 		//! Pointer to the %Manager object
 		static ManagerPar* instance;
 	};
-	
+
 	//! General task and protocol management class
 	/*!
 	 * Handles all task and protocol management, creation/destruction
@@ -222,11 +223,23 @@ namespace Fastcgipp
 
 		//! Return the amount of pending requests
 		size_t getRequestsSize() const { return requests.size(); }
-		
+
 		void setRequestCreatorCallback(RequestCreatorCallback callback)
 		{
 		    m_requestCreatorCallback = callback;
 		}
+
+		//! Remove the outstanding tasks for a certain FullId.
+		/*!
+                 * Whenever an error, e.g. exception, occurs after pushing
+                 * a message it should be undone. This is to prevent that tasks remain in the
+                 * queue while the request no longer exists.
+                 */
+		void removeTasks(const Protocol::FullId& removeId)
+		{
+			tasks.remove_if( [removeId] (Protocol::FullId id) { return id == removeId; } );
+		}
+
 	private:
 		//! Associative container type for active requests
 		/*!
@@ -240,7 +253,7 @@ namespace Fastcgipp
 		 * to the actual Request object.
 		 */
 		Requests requests;
-		
+
 		RequestCreatorCallback m_requestCreatorCallback;
 	};
 }
@@ -260,7 +273,7 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 			lock_guard<mutex> mesLock(it->second->messages);
 			it->second->messages.push(message);
 			lock_guard<mutex> tasksLock(tasks);
-			tasks.push(id);
+			tasks.push_back(id);
 		}
 		else if(!message.type)
 		{
@@ -273,7 +286,7 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 				unique_lock<shared_mutex> reqWriteLock(requests);
 
 				boost::shared_ptr<T>& request = requests[id];
-				
+
 				if (m_requestCreatorCallback)
 				{
 				    request.reset(m_requestCreatorCallback());
@@ -282,7 +295,15 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 				{
 				    request.reset(new T);
 				}
-				request->set(id, transceiver, body.getRole(), !body.getKeepConn(), boost::bind(&Manager::push, boost::ref(*this), id, _1));
+
+				request->set(
+					id,
+					transceiver,
+					body.getRole(),
+					!body.getKeepConn(),
+					boost::bind(&Manager::push, boost::ref(*this), id, _1),
+					boost::bind(&Manager::removeTasks, boost::ref(*this), id)
+				);
 			}
 			else
 				return;
@@ -291,7 +312,7 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 	else
 	{
 		messages.push(message);
-		tasks.push(id);
+		tasks.push_back(id);
 	}
 
 	lock_guard<mutex> sleepLock(sleepMutex);
@@ -314,7 +335,7 @@ template<class T> void Fastcgipp::Manager<T>::handler()
 				return;
 			}
 		}
-		
+
 		bool sleep=transceiver.handler();
 
 		{
@@ -352,7 +373,7 @@ template<class T> void Fastcgipp::Manager<T>::handler()
 		sleepLock.unlock();
 
 		Protocol::FullId id=tasks.front();
-		tasks.pop();
+		tasks.pop_front();
 		tasksLock.unlock();
 
 		if(id.fcgiId==0)
@@ -361,12 +382,15 @@ template<class T> void Fastcgipp::Manager<T>::handler()
 		{
 			shared_lock<shared_mutex> reqReadLock(requests);
 			typename map<Protocol::FullId, boost::shared_ptr<T> >::iterator it(requests.find(id));
-			if(it!=requests.end() && it->second->handler())
+			if (it!=requests.end())
 			{
-				reqReadLock.unlock();
-				unique_lock<shared_mutex> reqWriteLock(requests);
+				if (it->second->handler())
+				{
+					reqReadLock.unlock();
+					unique_lock<shared_mutex> reqWriteLock(requests);
 
-				requests.erase(it);
+					requests.erase(it);
+				}
 			}
 		}
 	}}

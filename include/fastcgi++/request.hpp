@@ -51,7 +51,7 @@ namespace Fastcgipp
 	 * At minimum, derivations of this class must define response().
 	 *
 	 * If you want to use UTF-8 encoding pass wchar_t as the template
-	 * argument, use setloc() to setup a UTF-8 locale and use wide 
+	 * argument, use setloc() to setup a UTF-8 locale and use wide
 	 * character unicode internally for everything. If you want to use
 	 * a 8bit character set encoding pass char as the template argument and
 	 * setloc() a locale with the corresponding character set.
@@ -67,14 +67,23 @@ namespace Fastcgipp
 		 * post data. Any data beyond this size would result in a call to
 		 * bigPostErrorHandler(). A value of 0 represents unlimited.
 		 */
-		Request(const size_t maxPostSize=0): m_maxPostSize(maxPostSize), state(Protocol::PARAMS)  { setloc(std::locale::classic()); out.exceptions(std::ios_base::badbit | std::ios_base::failbit | std::ios_base::eofbit); m_environment.clearPostBuffer(); }
+		Request(const size_t maxPostSize=0): m_maxPostSize(maxPostSize), state(Protocol::PARAMS)  {
+			setloc(std::locale::classic());
+			out.exceptions(std::ios_base::badbit | std::ios_base::failbit | std::ios_base::eofbit);
+			m_environment.clearPostBuffer();
+                }
+
+		virtual ~Request()
+		{
+			removeTasksCallback();
+		}
 
 		//! Accessor for  the data structure containing all HTTP environment data
 		const Http::Environment<charT>& environment() const { return m_environment; }
 
 		// To dump data into the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump(char* data, size_t size)
 		// or Fcgistream::dump(std::basic_istream<char>& stream)
-		
+
 		//! Standard output stream to the client
 		/*!
 		 * To dump data directly through the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump()
@@ -116,6 +125,12 @@ namespace Fastcgipp
 		 *	and the raw castable data.
 		 */
 		const boost::function<void(Message)>& callback() const { return m_callback; }
+
+		//! Accessor for the undo callback function for dealings outside the fastcgi++ library
+		/*!
+		 * This function should be called to undo any callback in case an exception occurs.
+		 */
+		const void removeTasksCallback() const { m_removeTasksCallback(); }
 
 		//! Set the requests locale
 		/*!
@@ -215,6 +230,9 @@ namespace Fastcgipp
 		 */
 		boost::function<void(Message)> m_callback;
 
+		//! Undo callback function for dealings outside the fastcgi++ library
+		boost::function<void()> m_removeTasksCallback;
+
 		//! The data structure containing all HTTP environment data
 		Http::Environment<charT> m_environment;
 
@@ -261,13 +279,21 @@ namespace Fastcgipp
 		 * @param[in] killCon_ Boolean value indicating whether or not the file descriptor should be closed upon completion
 		 * @param[in] callback_ Callback function capable of passing messages to the request
 		 */
-		void set(Protocol::FullId id_, Transceiver& transceiver_, Protocol::Role role_, bool killCon_, boost::function<void(Message)> callback_)
+		void set(
+			Protocol::FullId id_,
+			Transceiver& transceiver_,
+			Protocol::Role role_,
+			bool killCon_,
+			boost::function<void(Message)> callback_,
+			boost::function<void()> removeTasksCallback_
+		)
 		{
 			killCon=killCon_;
 			id=id_;
 			transceiver=&transceiver_;
 			m_role=role_;
 			m_callback=callback_;
+			m_removeTasksCallback=removeTasksCallback_;
 
 			err.set(id_, transceiver_, Protocol::ERR);
 			out.set(id_, transceiver_, Protocol::OUT);
@@ -277,7 +303,7 @@ namespace Fastcgipp
 	//! Includes all exceptions used by the fastcgi++ library
 	namespace Exceptions
 	{
-		/** 
+		/**
 		 * @brief Thrown if FastCGI records are received out of order.
 		 */
 		struct RecordsOutOfOrder: public std::exception
@@ -285,7 +311,7 @@ namespace Fastcgipp
 			const char* what() const throw() { return "FastCGI records received out of order from server."; }
 		};
 
-		/** 
+		/**
 		 * @brief Thrown if a incoming content type is unknown
 		 */
 		struct UnknownContentType: public std::exception

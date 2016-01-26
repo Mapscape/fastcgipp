@@ -74,8 +74,15 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 
 		{
 			boost::lock_guard<boost::mutex> lock(messages);
-			m_message=messages.front();
-			messages.pop();
+			if (messages.size() > 0)
+			{
+				m_message=messages.front();
+				messages.pop();
+			}
+			else
+			{
+				throw std::exception(std::runtime_error("No message queued for this request: messages and tasks queue out of sync?"));
+			}
 		}
 
 		if(message().type==0)

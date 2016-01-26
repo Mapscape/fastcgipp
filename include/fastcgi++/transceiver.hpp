@@ -48,53 +48,53 @@
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
-	namespace Exceptions
-	{
-		//! General exception for socket related errors
-		struct Socket: public CodedException
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] fd_ File descriptor of socket
-			 * @param[in] erno_ Associated errno
-			 */
-			Socket(const int& fd_, const int& erno_): CodedException(0, erno_), fd(fd_) { }
-			//! File descriptor of socket
-			const int fd;
-		};
+        namespace Exceptions
+        {
+                //! General exception for socket related errors
+                struct Socket: public CodedException
+                {
+                        //! Sole Constructor
+                        /*!
+                         * @param[in] fd_ File descriptor of socket
+                         * @param[in] erno_ Associated errno
+                         */
+                        Socket(const int& fd_, const int& erno_): CodedException(0, erno_), fd(fd_) { }
+                        //! File descriptor of socket
+                        const int fd;
+                };
 
-		//! %Exception for write errors to sockets
-		struct SocketWrite: public Socket
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] fd_ File descriptor of socket
-			 * @param[in] erno_ Associated errno
-			 */
-			SocketWrite(int fd_, int erno_);
-		};
+                //! %Exception for write errors to sockets
+                struct SocketWrite: public Socket
+                {
+                        //! Sole Constructor
+                        /*!
+                         * @param[in] fd_ File descriptor of socket
+                         * @param[in] erno_ Associated errno
+                         */
+                        SocketWrite(int fd_, int erno_);
+                };
 
-		//! %Exception for read errors to sockets
-		struct SocketRead: public Socket
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] fd_ File descriptor of socket
-			 * @param[in] erno_ Associated errno
-			 */
-			SocketRead(int fd_, int erno_);
-		};
+                //! %Exception for read errors to sockets
+                struct SocketRead: public Socket
+                {
+                        //! Sole Constructor
+                        /*!
+                         * @param[in] fd_ File descriptor of socket
+                         * @param[in] erno_ Associated errno
+                         */
+                        SocketRead(int fd_, int erno_);
+                };
 
-		//! %Exception for poll() errors
-		struct SocketPoll: public CodedException
-		{
-			//! Sole Constructor
-			/*!
-			 * @param[in] erno_ Associated errno
-			 */
-			SocketPoll(int erno_);
-		};
-	}
+                //! %Exception for poll() errors
+                struct SocketPoll: public CodedException
+                {
+                        //! Sole Constructor
+                        /*!
+                         * @param[in] erno_ Associated errno
+                         */
+                        SocketPoll(int erno_);
+                };
+        }
 
 	//! A raw block of memory
 	/*!
@@ -213,7 +213,7 @@ namespace Fastcgipp
 				//! Pointer to the first write byte in the chunk or 1+ the last read byte
 				char* end;
 				//! Creates a new data chunk
-				Chunk(): data(new char[size]), end(data.get()) { }
+				Chunk(): data(new char[size]()), end(data.get()) { }
 				~Chunk() { }
 				//! Creates a new object that shares the data of the old one
 				Chunk(const Chunk& chunk): data(chunk.data), end(data.get()) { }
