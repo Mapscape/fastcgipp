@@ -168,11 +168,19 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 		}
 	}
 	catch(const Exceptions::Socket& e)
-	{
-		// Socket exceptions should not write to the socket (as the other type of exceptions do).
-		std::cerr << "Socket exception: " << e.what() << std::endl;
-		return true;
-	}
+    {
+        // Socket exceptions should not write to the socket (as the other type of exceptions do).
+        std::cerr << "Socket exception: " << e.what() << std::endl;
+        return true;
+    }
+    catch(const Exceptions::UnknownContentType& e)
+    {
+        out << "Status: 415 Unsupported Media Type\n"
+               "Content-Type: text/html; charset=ISO-8859-1\r\n\r\n";
+        complete();
+        return true;
+        
+    }
 	catch(const std::exception& e)
 	{
 		errorHandler(e);
