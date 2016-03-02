@@ -1,6 +1,6 @@
 //! \file transceiver.hpp Defines the Fastcgipp::Transceiver class
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@isatec.ca]                         *
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                         *
 *                                                                          *
 * This file is part of fastcgi++.                                          *
 *                                                                          *
@@ -50,8 +50,8 @@ namespace Fastcgipp
 {
     //! A raw block of memory
     /*!
-     * The purpose of this structure is to communicate a block of data to be written to
-     * a Transceiver::Buffer
+     * The purpose of this structure is to communicate a block of data to be
+     * written to a Transceiver::Buffer
      */
     struct Block
     {
@@ -60,48 +60,97 @@ namespace Fastcgipp
          * @param[in] data_ Pointer to start of memory location
          * @param[in] size_ Size in bytes of memory location
          */
-        Block(char* data_, size_t size_): data(data_), size(size_) { }
+        Block(
+                char* data_,
+                size_t size_):
+            data(data_),
+            size(size_)
+        {}
+
         //! Copies pointer and size, not data
-        Block(const Block& block): data(block.data), size(block.size) { }
+        Block(const Block& block):
+            data(block.data),
+            size(block.size)
+        {}
+
         //! Copies pointer and size, not data
-        const Block& operator=(const Block& block) { data=block.data; size=block.size; return *this; }
+        const Block& operator=(const Block& block)
+        {
+            data=block.data;
+            size=block.size;
+            return *this;
+        }
+
         //! Pointer to start of memory location
         char* data;
+
         //! Size in bytes of memory location
         size_t size;
     };
 
     //! Handles low level communication with "the other side"
     /*!
-     * This class handles the sending/receiving/buffering of data through the OS level sockets and also
-     * the creation/destruction of the sockets themselves.
+     * This class handles the sending/receiving/buffering of data through the OS
+     * level sockets and also the creation/destruction of the sockets
+     * themselves.
      */
     class Transceiver
     {
     public:
         //! General transceiver handler
         /*!
-         * This function is called by Manager::handler() to both transmit data passed to it from
-         * requests and relay received data back to them as a Message. The function will return true
-         * if there is nothing at all for it to do.
+         * This function is called by Manager::handler() to both transmit data
+         * passed to it from requests and relay received data back to them as a
+         * Message. The function will return true if there is nothing at all for
+         * it to do.
          *
-         * @return Boolean value indicating whether there is data to be transmitted or received
+         * @return Boolean value indicating whether there is data to be
+         *         transmitted or received
          */
         bool handler();
 
-        //! Direct interface to Buffer::requestWrite()
-        Block requestWrite(size_t size) { return buffer.requestWrite(size); }
-        //! Direct interface to Buffer::secureWrite()
-        void secureWrite(size_t size, Protocol::FullId id, bool kill)   { buffer.secureWrite(size, id, kill); transmit(); }
+        //! Request a write block in the buffer for transmission
+        /*!
+         * This is simply a direct interface to Buffer::requestWrite()
+         *
+         * @param[in] size Requested size of write block
+         * @return Block of writable memory. Size may be less than requested
+         */
+        Block requestWrite(size_t size)
+        {
+            return buffer.requestWrite(size);
+        }
+
+        //! Secure a write in the buffer
+        /*!
+         * This is simply a direct interface to Buffer::secureWrite()
+         *
+         * @param[in] size Amount of bytes to secure
+         * @param[in] id Associated complete ID (contains file descriptor)
+         * @param[in] kill Boolean value indicating whether or not the file
+         *                 descriptor should be closed after transmission
+         */
+        void secureWrite(
+                size_t size,
+                Protocol::FullId id,
+                bool kill)
+        {
+            buffer.secureWrite(size, id, kill);
+            transmit();
+        }
+
         //! Constructor
         /*!
-         * Construct a transceiver object based on an initial file descriptor to listen on and
-         * a function to pass messages on to.
+         * Construct a transceiver object based on an initial file descriptor to
+         * listen on and a function to pass messages on to.
          *
          * @param[in] fd_ File descriptor to listen for connections on
          * @param[in] sendMessage_ Function to call to pass messages to requests
          */
-        Transceiver(int fd_, boost::function<void(Protocol::FullId, Message)> sendMessage_);
+        Transceiver(
+                int fd_,
+                boost::function<void(Protocol::FullId, Message)> sendMessage_);
+
         //! Blocks until there is data to receive or a call to wake() is made
         void sleep()
         {
@@ -117,11 +166,12 @@ namespace Fastcgipp
         {
             //! Buffer for header information
             Protocol::Header headerBuffer;
+
             //! Buffer of complete Message
             Message messageBuffer;
         };
 
-        //! %Buffer type for transmission of FastCGI records
+        //! %Buffer type for transmitting of FastCGI records
         /*!
          * This buffer is implemented as a circle of Chunk objects; the number
          * of which can grow and shrink as needed. Write space is requested with
@@ -329,15 +379,19 @@ namespace Fastcgipp
 
         //! %Buffer for transmitting data
         Buffer buffer;
+
         //! Function to call to pass messages to requests
         boost::function<void(Protocol::FullId, Message)> sendMessage;
         
         //! poll() file descriptors container
         std::vector<pollfd> pollFds;
+
         //! Socket to listen for connections on
         int socket;
+
         //! Input file descriptor to the wakeup socket pair
         int wakeUpFdIn;
+
         //! Output file descriptor to the wakeup socket pair
         int wakeUpFdOut;
         
@@ -350,19 +404,25 @@ namespace Fastcgipp
     public:
         //! Free fd/pipe and all it's associated resources
         /*!
-         * By calling this function you close the passed file descriptor
-         * and free up it's associated buffers and resources. It is safe
-         * to call this function at any time with any fd(even bad ones).
-         * If requests still exists with this fd then they will be lost.
+         * By calling this function you close the passed file descriptor and
+         * free up it's associated buffers and resources. It is safe to call
+         * this function at any time with any fd (even bad ones). If requests
+         * still exists with this fd then they will be lost.
          *
          * @param fd File descriptor to delete/free up
          * @param pollFds Epoll container
          * @param fdBuffers Container of fd/pipe buffers
          */
-        static void freeFd(int fd, std::vector<pollfd>& pollFds, std::map<int, fdBuffer>& fdBuffers);
+        static void freeFd(
+                int fd,
+                std::vector<pollfd>& pollFds,
+                std::map<int, fdBuffer>& fdBuffers);
 
-        //! Helper function for freeFd(int fd, std::vector<pollfd> pollFds, std::map<int, fdBuffer> fdBuffers)
-        void freeFd(int fd_) { freeFd(fd_, pollFds, fdBuffers);  }
+        //! Helper function
+        void freeFd(int fd_)
+        {
+            freeFd(fd_, pollFds, fdBuffers);
+        }
     };
     
     //! Predicate for comparing the file descriptor of a pollfd
@@ -389,7 +449,10 @@ namespace Fastcgipp
              * @param[in] fd_ File descriptor of socket
              * @param[in] erno_ Associated errno
              */
-            Socket(const int& fd_, const int& erno_): CodedException(0, erno_), fd(fd_) { }
+            Socket(const int& fd_, const int& erno_):
+                CodedException(0, erno_),
+                fd(fd_) { }
+
             //! File descriptor of socket
             const int fd;
         };

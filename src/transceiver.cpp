@@ -1,6 +1,6 @@
 //! \file transceiver.cpp Defines member functions for Fastcgipp::Transceiver
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                         *
 *                                                                          *
 * This file is part of fastcgi++.                                          *
 *                                                                          *
@@ -36,7 +36,8 @@ int Fastcgipp::Transceiver::transmit()
                     freeFd(sendBlock.fd);
                     sent=sendBlock.size;
                 }
-                else if(errno!=EAGAIN) throw Exceptions::SocketWrite(sendBlock.fd, errno);
+                else if(errno!=EAGAIN)
+                    throw Exceptions::SocketWrite(sendBlock.fd, errno);
             }
 
             buffer.freeRead(sent);
@@ -82,7 +83,10 @@ bool Fastcgipp::Transceiver::handler()
     }
     if(retVal<0) throw Exceptions::SocketPoll(errno);
     
-    std::vector<pollfd>::iterator pollFd = find_if(pollFds.begin(), pollFds.end(), reventsZero);
+    std::vector<pollfd>::iterator pollFd = find_if(
+            pollFds.begin(),
+            pollFds.end(),
+            reventsZero);
 
     if(pollFd->revents & (POLLHUP|POLLERR|POLLNVAL) )
     {
@@ -122,7 +126,10 @@ bool Fastcgipp::Transceiver::handler()
     if(!messageBuffer.data)
     {
         // Are we recieving a partial header or new?
-        actual=read(fd, (char*)&headerBuffer+messageBuffer.size, sizeof(Header)-messageBuffer.size);
+        actual=read(
+                fd,
+                (char*)&headerBuffer+messageBuffer.size,
+                sizeof(Header)-messageBuffer.size);
         if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
         if(actual>0) messageBuffer.size+=actual;
         
@@ -139,13 +146,26 @@ bool Fastcgipp::Transceiver::handler()
             else return false;
         }
 
-        messageBuffer.data.reset(new char[sizeof(Header)+headerBuffer.getContentLength()+headerBuffer.getPaddingLength()]);
-        memcpy(static_cast<void*>(messageBuffer.data.get()), static_cast<const void*>(&headerBuffer), sizeof(Header));
+        messageBuffer.data.reset(new char[
+                sizeof(Header)
+                +headerBuffer.getContentLength()
+                +headerBuffer.getPaddingLength()]);
+        memcpy(
+                static_cast<void*>(messageBuffer.data.get()),
+                static_cast<const void*>(&headerBuffer),
+                sizeof(Header));
     }
 
     const Header& header=*(const Header*)messageBuffer.data.get();
-    size_t needed=header.getContentLength()+header.getPaddingLength()+sizeof(Header)-messageBuffer.size;
-    actual=read(fd, messageBuffer.data.get()+messageBuffer.size, needed);
+    size_t needed=
+        header.getContentLength()
+        +header.getPaddingLength()
+        +sizeof(Header)
+        -messageBuffer.size;
+    actual=read(
+            fd,
+            messageBuffer.data.get()+messageBuffer.size,
+            needed);
     if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
     if(actual>0) messageBuffer.size+=actual;
 
@@ -204,8 +224,13 @@ void Fastcgipp::Transceiver::wake()
     write(wakeUpFdOut, &x, 1);
 }
 
-Fastcgipp::Transceiver::Transceiver(int fd_, boost::function<void(Protocol::FullId, Message)> sendMessage_)
-:buffer(pollFds, fdBuffers), sendMessage(sendMessage_), pollFds(2), socket(fd_)
+Fastcgipp::Transceiver::Transceiver(
+        int fd_,
+        boost::function<void(Protocol::FullId, Message)> sendMessage_):
+    buffer(pollFds, fdBuffers),
+    sendMessage(sendMessage_),
+    pollFds(2),
+    socket(fd_)
 {
     socket=fd_;
     
@@ -213,7 +238,10 @@ Fastcgipp::Transceiver::Transceiver(int fd_, boost::function<void(Protocol::Full
     int socPair[2];
     socketpair(AF_UNIX, SOCK_STREAM, 0, socPair);
     wakeUpFdIn=socPair[0];
-    fcntl(wakeUpFdIn, F_SETFL, (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK); 
+    fcntl(
+            wakeUpFdIn,
+            F_SETFL,
+            (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK); 
     wakeUpFdOut=socPair[1]; 
     
     fcntl(socket, F_SETFL, (fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
@@ -223,7 +251,10 @@ Fastcgipp::Transceiver::Transceiver(int fd_, boost::function<void(Protocol::Full
     pollFds[1].fd = wakeUpFdIn;
 }
 
-Fastcgipp::Exceptions::SocketWrite::SocketWrite(int fd_, int erno_): Socket(fd_, erno_)
+Fastcgipp::Exceptions::SocketWrite::SocketWrite(
+        int fd_,
+        int erno_):
+    Socket(fd_, erno_)
 {
     switch(errno)
     {
@@ -325,9 +356,15 @@ Fastcgipp::Exceptions::SocketPoll::SocketPoll(int erno_): CodedException(0, erno
     }
 }
 
-void Fastcgipp::Transceiver::freeFd(int fd, std::vector<pollfd>& pollFds, std::map<int, fdBuffer>& fdBuffers)
+void Fastcgipp::Transceiver::freeFd(
+        int fd,
+        std::vector<pollfd>& pollFds,
+        std::map<int, fdBuffer>& fdBuffers)
 {
-    std::vector<pollfd>::iterator it=std::find_if(pollFds.begin(), pollFds.end(), equalsFd(fd));
+    std::vector<pollfd>::iterator it=std::find_if(
+            pollFds.begin(),
+            pollFds.end(),
+            equalsFd(fd));
     if(it != pollFds.end())
     {
         pollFds.erase(it);
