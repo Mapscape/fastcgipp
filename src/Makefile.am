@@ -21,9 +21,3 @@ libfastcgipp_la_SOURCES = \
 	transceiver.cpp \
 	fcgistream.cpp \
 	utf8_codecvt_facet.cpp
-
-if HAVE_MYSQL_H
-libfastcgipp_la_SOURCES += mysql.cpp
-LDADD += -lmysqlclient
-endif
-

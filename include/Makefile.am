@@ -15,17 +15,6 @@ nobase_include_HEADERS =  \
 	./fastcgi++/message.hpp \
 	./fastcgi++/request.hpp
 
-if HAVE_MYSQL_H
-nobase_include_HEADERS += ./asql/asql.hpp \
-								  ./asql/data.hpp \
-								  ./asql/query.hpp \
-								  ./asql/exception.hpp
-endif
-
-if HAVE_MYSQL_H
-nobase_include_HEADERS += ./asql/mysql.hpp
-endif
-
 nobase_nodist_include_HEADERS = ./fastcgi++/config.h
 
 noinst_HEADERS = \
