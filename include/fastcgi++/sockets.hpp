@@ -130,8 +130,6 @@ namespace Fastcgipp
                 Listener& listener,
                 bool valid=true);
 
-        Socket() =delete;
-
     public:
         //! Try and read a chunk of data out of the socket.
         /*!
@@ -232,6 +230,9 @@ namespace Fastcgipp
          * If the socket is already invalid, calling this does nothing.
          */
         void close();
+
+        //! Creates an invalid socket with no original.
+        Socket();
     };
 
     //! Class for representing an OS level socket that listens for connections.
@@ -319,9 +320,6 @@ namespace Fastcgipp
 
         //! All the sockets
         std::map<socket_t, Socket> m_sockets;
-
-        //! Generic bad socket
-        const Socket m_badSocket;
 
         //! Accept a new connection and create it's socket
         inline void createSocket();

@@ -109,8 +109,7 @@ void Fastcgipp::Socket::close()
 Fastcgipp::Listener::Listener(socket_t listen):
     m_listen(listen),
     m_poll(epoll_create1(0)),
-    m_sleeping(false),
-    m_badSocket(-1, *this, false)
+    m_sleeping(false)
 {
     epoll_event event;
 
@@ -236,7 +235,7 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
             }
         }
         
-        return m_badSocket;
+        return Socket();
     }
 }
 
@@ -284,3 +283,8 @@ void Fastcgipp::Listener::createSocket()
             socket,
             std::move(Socket(socket, *this)));
 }
+
+Fastcgipp::Socket::Socket():
+    m_data(new Data(-1, false, *(Listener*)(nullptr))),
+    m_original(false)
+{}
