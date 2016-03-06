@@ -1,22 +1,30 @@
-//! \file transceiver.cpp Defines member functions for Fastcgipp::Transceiver
-/***************************************************************************
-* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                         *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
-* under the terms of the GNU Lesser General Public License as  published   *
-* by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
-* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
-* You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
-****************************************************************************/
+/*!
+ * @file       transceiver.hpp
+ * @brief      Defines the Fastcgipp::Transceiver class
+ * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
+ * @date       March 6, 2016
+ * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
+ *             the GNU Lesser General Public License Version 3.
+ */
+
+/*******************************************************************************
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                             *
+*                                                                              *
+* This file is part of fastcgi++.                                              *
+*                                                                              *
+* fastcgi++ is free software: you can redistribute it and/or modify it under   *
+* the terms of the GNU Lesser General Public License as  published by the Free *
+* Software Foundation, either version 3 of the License, or (at your option)    *
+* any later version.                                                           *
+*                                                                              *
+* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT ANY *
+* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    *
+* FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for     *
+* more details.                                                                *
+*                                                                              *
+* You should have received a copy of the GNU Lesser General Public License     *
+* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
+*******************************************************************************/
 
 #include <fastcgi++/transceiver.hpp>
 
@@ -202,7 +210,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
 
         // Did we recieve a full frame?
         if(actual==needed)
-        {       
+        {
             m_sendMessage(
                     Protocol::RequestId(header.fcgiId, socket),
                     std::move(messageBuffer));

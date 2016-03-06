@@ -1,23 +1,30 @@
-//! \file transceiver.hpp Defines the Fastcgipp::Transceiver class
-/***************************************************************************
-* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                         *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
-* under the terms of the GNU Lesser General Public License as  published   *
-* by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
-* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
-* You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
-****************************************************************************/
+/*!
+ * @file       transceiver.hpp
+ * @brief      Declares the Fastcgipp::Transceiver class
+ * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
+ * @date       March 6, 2016
+ * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
+ *             the GNU Lesser General Public License Version 3.
+ */
 
+/*******************************************************************************
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                             *
+*                                                                              *
+* This file is part of fastcgi++.                                              *
+*                                                                              *
+* fastcgi++ is free software: you can redistribute it and/or modify it under   *
+* the terms of the GNU Lesser General Public License as  published by the Free *
+* Software Foundation, either version 3 of the License, or (at your option)    *
+* any later version.                                                           *
+*                                                                              *
+* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT ANY *
+* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    *
+* FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for     *
+* more details.                                                                *
+*                                                                              *
+* You should have received a copy of the GNU Lesser General Public License     *
+* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
+*******************************************************************************/
 
 #ifndef TRANSCEIVER_HPP
 #define TRANSCEIVER_HPP
@@ -155,7 +162,7 @@ namespace Fastcgipp
          * of which can grow and shrink as needed. Write space is requested with
          * requestWrite() which thereby returns a WriteBlock which may be smaller
          * than requested. The write is committed by calling commitWrite(). A
-         * smaller space can be committed than was given to write on. 
+         * smaller space can be committed than was given to write on.
          *
          * All data written to the buffer has an associated file descriptor and
          * FastCGI ID through which it is flushed. This association with data is
@@ -214,7 +221,7 @@ namespace Fastcgipp
 
                 //! Creates a new data chunk
                 Chunk():
-                    m_data(new char[size]), 
+                    m_data(new char[size]),
                     m_end(m_data.get())
                 {}
 
@@ -222,7 +229,7 @@ namespace Fastcgipp
                 Chunk(Chunk&& chunk):
                     m_data(std::move(chunk.m_data)),
                     m_end(m_data.get())
-                {} 
+                {}
             };
 
             //! A list of chunks. Can contain from 2-infinity
@@ -337,13 +344,13 @@ namespace Fastcgipp
 
         //! Function to call to pass messages to requests
         std::function<void(Protocol::RequestId, Message&&)> m_sendMessage;
-        
+
         //! Listen for connections with this
         Listener m_listener;
 
         //! Container associating sockets with their receive buffers
         std::map<Socket, ReceiveBuffer> m_receiveBuffers;
-        
+
         //! Transmit all buffered data possible
         inline void transmit();
 
