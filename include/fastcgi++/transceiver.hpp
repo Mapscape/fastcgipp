@@ -27,23 +27,11 @@
 #include <queue>
 #include <algorithm>
 #include <map>
-#include <vector>
 #include <functional>
-
-#include <boost/function.hpp>
-#include <boost/bind.hpp>
-#include <boost/shared_array.hpp>
-
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <signal.h>
+#include <memory>
+#include <mutex>
 
 #include <fastcgi++/protocol.hpp>
-#include <fastcgi++/exceptions.hpp>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -51,41 +39,39 @@ namespace Fastcgipp
     //! A raw block of memory
     /*!
      * The purpose of this structure is to communicate a block of data to be
-     * written to a Transceiver::Buffer
+     * written to a Transceiver::SendBuffer
      */
-    struct Block
+    struct WriteBlock
     {
         //! Construct from a pointer and size
         /*!
-         * @param[in] data_ Pointer to start of memory location
-         * @param[in] size_ Size in bytes of memory location
+         * @param[in] data Pointer to start of memory location
+         * @param[in] size Size in bytes of memory location
          */
-        Block(
-                char* data_,
-                size_t size_):
-            data(data_),
-            size(size_)
+        WriteBlock(char* data, size_t size):
+            m_data(data),
+            m_size(size)
         {}
 
         //! Copies pointer and size, not data
-        Block(const Block& block):
-            data(block.data),
-            size(block.size)
+        WriteBlock(const WriteBlock& block):
+            m_data(block.m_data),
+            m_size(block.m_size)
         {}
 
         //! Copies pointer and size, not data
-        const Block& operator=(const Block& block)
+        const WriteBlock& operator=(const WriteBlock& block)
         {
-            data=block.data;
-            size=block.size;
+            m_data=block.m_data;
+            m_size=block.m_size;
             return *this;
         }
 
         //! Pointer to start of memory location
-        char* data;
+        char* m_data;
 
         //! Size in bytes of memory location
-        size_t size;
+        size_t m_size;
     };
 
     //! Handles low level communication with "the other side"
@@ -107,36 +93,37 @@ namespace Fastcgipp
          * @return Boolean value indicating whether there is data to be
          *         transmitted or received
          */
-        bool handler();
+        void handler();
 
         //! Request a write block in the buffer for transmission
         /*!
-         * This is simply a direct interface to Buffer::requestWrite()
+         * This is simply a direct interface to SendBuffer::requestWrite()
          *
          * @param[in] size Requested size of write block
-         * @return Block of writable memory. Size may be less than requested
+         * @return WriteBlock of writable memory. Size may be less than
+         *         requested.
          */
-        Block requestWrite(size_t size)
+        WriteBlock requestWrite(size_t size)
         {
-            return buffer.requestWrite(size);
+            return m_sendBuffer.requestWrite(size);
         }
 
         //! Secure a write in the buffer
         /*!
-         * This is simply a direct interface to Buffer::secureWrite()
+         * This is simply a direct interface to SendBuffer::commitWrite()
          *
-         * @param[in] size Amount of bytes to secure
-         * @param[in] id Associated complete ID (contains file descriptor)
+         * @param[in] size Amount of bytes to commit
+         * @param[in] socket Associated socket
          * @param[in] kill Boolean value indicating whether or not the file
          *                 descriptor should be closed after transmission
          */
-        void secureWrite(
+        void commitWrite(
                 size_t size,
-                Protocol::FullId id,
+                const Socket& socket,
                 bool kill)
         {
-            buffer.secureWrite(size, id, kill);
-            transmit();
+            m_sendBuffer.commitWrite(size, socket, kill);
+            m_listener.wake();
         }
 
         //! Constructor
@@ -148,347 +135,224 @@ namespace Fastcgipp
          * @param[in] sendMessage_ Function to call to pass messages to requests
          */
         Transceiver(
-                int fd_,
-                boost::function<void(Protocol::FullId, Message)> sendMessage_);
-
-        //! Blocks until there is data to receive or a call to wake() is made
-        void sleep()
-        {
-            poll(&pollFds.front(), pollFds.size(), -1);
-        }
-        
-        //! Forces a wakeup from a call to sleep()
-        void wake();
+                const socket_t& socket,
+                std::function<void(Protocol::RequestId, Message&&)> sendMessage);
 
     private:
-        //! %Buffer type for receiving FastCGI records
-        struct fdBuffer
+        //! Buffer type for receiving FastCGI records
+        struct ReceiveBuffer
         {
             //! Buffer for header information
-            Protocol::Header headerBuffer;
+            Protocol::Header header;
 
             //! Buffer of complete Message
-            Message messageBuffer;
+            Message message;
         };
 
-        //! %Buffer type for transmitting of FastCGI records
+        //! Buffer type for transmitting of FastCGI records
         /*!
          * This buffer is implemented as a circle of Chunk objects; the number
          * of which can grow and shrink as needed. Write space is requested with
-         * requestWrite() which thereby returns a Block which may be smaller
-         * than requested. The write is committed by calling secureWrite(). A
+         * requestWrite() which thereby returns a WriteBlock which may be smaller
+         * than requested. The write is committed by calling commitWrite(). A
          * smaller space can be committed than was given to write on. 
          *
          * All data written to the buffer has an associated file descriptor and
          * FastCGI ID through which it is flushed. This association with data is
          * managed through a queue of Frame objects.
          */
-        class Buffer
+        class SendBuffer
         {
-            //! %Frame of data associated with a file descriptor
+        private:
+            //! %Frame of data associated with a specific socket
             struct Frame
             {
                 //! Constructor
                 /*!
-                 * @param[in] size_ Size of the frame
-                 * @param[in] closeFd_ Boolean value indication whether or not
-                 *                     the file descriptor should be closed when
-                 *                     the frame has been flushed
-                 * @param[in] id_ Complete ID of the request making the frame
+                 * @param[in] size Size of the frame.
+                 * @param[in] close Boolean value indicating whether or not the
+                 *                  socket should be closed when the frame has
+                 *                  been sent.
+                 * @param[inout] socket Socket this frame should be sent out on.
                  */
                 Frame(
-                        size_t size_,
-                        bool closeFd_,
-                        Protocol::FullId id_):
-                    size(size_),
-                    closeFd(closeFd_),
-                    id(id_)
+                        size_t size,
+                        bool close,
+                        const Socket& socket):
+                    m_size(size),
+                    m_close(close),
+                    m_socket(socket)
                 {}
 
                 //! Size of the frame
-                size_t size;
+                size_t m_size;
 
-                //! Should the FD be closed when the frame has been flushed?
-                bool closeFd;
+                //! Should the socket be closed when the frame has been flushed?
+                const bool m_close;
 
                 //! Complete ID associated with the data frame
-                Protocol::FullId id;
+                Socket m_socket;
             };
 
             //! Queue of frames waiting to be transmitted
-            std::queue<Frame> frames;
+            std::queue<Frame> m_frames;
 
-            //! Minimum Block size value that can be given from requestWrite()
-            const static unsigned int minBlockSize = 256;
+            //! Minimum WriteBlock size value that can be given from requestWrite()
+            const static unsigned int minWriteBlockSize = 256;
 
-            //! %Chunk of data in Buffer
+            //! %Chunk of data in SendBuffer
             struct Chunk
             {
                 //! Size of data section of the chunk
                 const static unsigned int size = 131072;
 
-                //! Pointer to the first byte in the chunk data
-                boost::shared_array<char> data;
+                //! Actual chunk data
+                std::unique_ptr<char> m_data;
 
                 //! Pointer to the first write byte or 1+ the last read byte
-                char* end;
+                char* m_end;
 
                 //! Creates a new data chunk
                 Chunk():
-                    data(new char[size]), 
-                    end(data.get())
+                    m_data(new char[size]), 
+                    m_end(m_data.get())
                 {}
 
-                //! Creates a new chunk that shares the data of the old one
-                Chunk(const Chunk& chunk):
-                    data(chunk.data),
-                    end(data.get())
+                //! Creates a new chunk that takes the data of the old one
+                Chunk(Chunk&& chunk):
+                    m_data(std::move(chunk.m_data)),
+                    m_end(m_data.get())
                 {} 
             };
 
             //! A list of chunks. Can contain from 2-infinity
-            std::list<Chunk> chunks;
+            std::list<Chunk> m_chunks;
 
             //! Iterator pointing to the chunk currently used for writing
-            std::list<Chunk>::iterator writeIt;
+            std::list<Chunk>::iterator m_write;
 
             //! Current read spot in the buffer
-            char* pRead;
+            char* m_read;
 
-            //! Needed for removing FDs when they are closed
-            std::vector<pollfd>& pollFds;
+            //! Only one write to the buffer at a time.
+            std::mutex m_writeMutex;
 
-            //! Needed for deleting receive buffers upon closing of the FDs
-            std::map<int, fdBuffer>& fdBuffers;
+            //! Only one write to the buffer at a time.
+            std::unique_lock<std::mutex> m_writeLock;
 
-            //! Helper function
-            void freeFd(int fd_)
-            {
-                Fastcgipp::Transceiver::freeFd(fd_, pollFds, fdBuffers);
-            }
+            //! Needed to synchronize read/writes to the buffer
+            std::mutex m_bufferMutex;
 
         public:
-            //! Constructor
-            /*!
-             * @param[out] pollFds_ A reference to Transceiver::pollFds is
-             *                      needed for removing file descriptors when
-             *                      they are closed
-             * @param[out] fdBuffers_ A reference to Transceiver::fdBuffers is
-             *                        needed for deleting receive buffers upon
-             *                        closing of the file descriptor
-             */
-            Buffer(
-                    std::vector<pollfd>& pollFds_,
-                    std::map<int, fdBuffer>& fdBuffers_):
-                chunks(1),
-                writeIt(chunks.begin()),
-                pRead(chunks.begin()->data.get()), pollFds(pollFds_),
-                fdBuffers(fdBuffers_)
+            SendBuffer():
+                m_chunks(2),
+                m_write(m_chunks.begin()),
+                m_read(m_chunks.begin()->m_data.get()),
+                m_writeLock(m_writeMutex, std::defer_lock)
             {}
 
             //! Request a write block in the buffer
             /*!
              * @param[in] size Requested size of write block
-             * @return Block of writable memory. Size may be less than requested
+             * @return WriteBlock of writable memory. Size may be less than
+             *         requested.
              */
-            Block requestWrite(size_t size)
-            {
-                return Block(
-                        writeIt->end,
-                        std::min(
-                            size,
-                            (size_t)(
-                                writeIt->data.get()
-                                +Chunk::size
-                                -writeIt->end)
-                            )
-                        );
-            }
+            WriteBlock requestWrite(size_t size);
 
             //! Secure a write in the buffer
             /*!
-             * @param[in] size Amount of bytes to secure
-             * @param[in] id Associated complete ID (contains file descriptor)
+             * @param[in] size Amount of bytes to commit.
+             * @param[in] socket Associated socket.
              * @param[in] kill Boolean value indicating whether or not the file
-             *                 descriptor should be closed after transmission
+             *                 descriptor should be closed after transmission.
              */
-            void secureWrite(size_t size, Protocol::FullId id, bool kill);
+            void commitWrite(size_t size, const Socket& socket, bool kill);
 
-            //! %Block of memory for extraction from Buffer
+            //! %Block of memory for extraction from SendBuffer
             struct ReadBlock
             {
                 //! Constructor
                 /*!
-                 * @param[in] data_ Pointer to the first byte in the block
-                 * @param[in] size_ Size in bytes of the data
-                 * @param[in] fd_ File descriptor the data should be written to
+                 * @param[in] data Pointer to the first byte in the block
+                 * @param[in] size Size in bytes of the data
+                 * @param[in] fd %Socket the data should be written to
                  */
                 ReadBlock(
-                        const char* data_,
-                        size_t size_,
-                        int fd_):
-                    data(data_),
-                    size(size_),
-                    fd(fd_)
+                        const char* const data,
+                        const size_t size,
+                        Socket socket):
+                    m_data(data),
+                    m_size(size),
+                    m_socket(socket)
                 {}
 
-                //! Create a new object that shares the data of the old
-                ReadBlock(const ReadBlock& sendBlock):
-                    data(sendBlock.data),
-                    size(sendBlock.size),
-                    fd(sendBlock.fd)
+                //! Create a new object that points to the same data as the old.
+                ReadBlock(const ReadBlock& readBlock):
+                    m_data(readBlock.m_data),
+                    m_size(readBlock.m_size),
+                    m_socket(readBlock.m_socket)
+                {}
+
+                //! Initializes an invalid block
+                ReadBlock():
+                    m_data(nullptr),
+                    m_size(0),
+                    m_socket(Socket())
                 {}
 
                 //! Pointer to the first byte in the block
-                const char* data;
+                const char* const m_data;
 
                 //! Size in bytes of the data
-                size_t size;
+                const size_t m_size;
 
-                //! File descriptor the data should be written to
-                int fd;
+                //! Socket the data should be written to
+                Socket m_socket;
             };
 
             //! Request a block of data for transmitting
             /*!
-             * @return A block of data with a file descriptor to write it to
+             * @return A block of data with a socket to write it to
              */
-            ReadBlock requestRead()
-            {
-                return ReadBlock(
-                        pRead,
-                        frames.empty()?0:frames.front().size,
-                        frames.empty()?-1:frames.front().id.fd);
-            }
+            inline ReadBlock requestRead();
 
             //! Mark data in the buffer as transmitted and free it's memory
             /*!
-             * @param size Amount of bytes to mark as transmitted and free
+             * @param size Amount of bytes to mark as transmitted and free up
              */
-            void freeRead(size_t size);
+            inline void free(size_t size);
 
             //! Test of the buffer is empty
             /*!
              * @return true if the buffer is empty
              */
-            bool empty()
+            bool empty() const
             {
-                return pRead==writeIt->end;
+                return m_frames.empty();
             }
         };
 
         //! %Buffer for transmitting data
-        Buffer buffer;
+        SendBuffer m_sendBuffer;
 
         //! Function to call to pass messages to requests
-        boost::function<void(Protocol::FullId, Message)> sendMessage;
+        std::function<void(Protocol::RequestId, Message&&)> m_sendMessage;
         
-        //! poll() file descriptors container
-        std::vector<pollfd> pollFds;
+        //! Listen for connections with this
+        Listener m_listener;
 
-        //! Socket to listen for connections on
-        int socket;
-
-        //! Input file descriptor to the wakeup socket pair
-        int wakeUpFdIn;
-
-        //! Output file descriptor to the wakeup socket pair
-        int wakeUpFdOut;
-        
-        //! Container associating file descriptors with their receive buffers
-        std::map<int, fdBuffer> fdBuffers;
+        //! Container associating sockets with their receive buffers
+        std::map<Socket, ReceiveBuffer> m_receiveBuffers;
         
         //! Transmit all buffered data possible
-        int transmit();
+        inline void transmit();
 
-    public:
-        //! Free fd/pipe and all it's associated resources
-        /*!
-         * By calling this function you close the passed file descriptor and
-         * free up it's associated buffers and resources. It is safe to call
-         * this function at any time with any fd (even bad ones). If requests
-         * still exists with this fd then they will be lost.
-         *
-         * @param fd File descriptor to delete/free up
-         * @param pollFds Epoll container
-         * @param fdBuffers Container of fd/pipe buffers
-         */
-        static void freeFd(
-                int fd,
-                std::vector<pollfd>& pollFds,
-                std::map<int, fdBuffer>& fdBuffers);
+        //! Remove receive buffers associated to dead sockets.
+        inline void cleanupReceiveBuffers();
 
-        //! Helper function
-        void freeFd(int fd_)
-        {
-            freeFd(fd_, pollFds, fdBuffers);
-        }
+        //! Receive data on the specified socket.
+        inline void receive(Socket& socket);
     };
-    
-    //! Predicate for comparing the file descriptor of a pollfd
-    struct equalsFd : public std::unary_function<pollfd, bool>
-    {
-        int fd;
-        explicit equalsFd(int fd_): fd(fd_) {}
-        bool operator()(const pollfd& x) const { return x.fd==fd; };
-    };
-    
-    //! Predicate for testing if the revents in a pollfd is non-zero
-    inline bool reventsZero(const pollfd& x)
-    {
-        return x.revents;
-    }
-
-    namespace Exceptions
-    {
-        //! General exception for socket related errors
-        struct Socket: public CodedException
-        {
-            //! Sole Constructor
-            /*!
-             * @param[in] fd_ File descriptor of socket
-             * @param[in] erno_ Associated errno
-             */
-            Socket(const int& fd_, const int& erno_):
-                CodedException(0, erno_),
-                fd(fd_) { }
-
-            //! File descriptor of socket
-            const int fd;
-        };
-        
-        //! %Exception for write errors to sockets
-        struct SocketWrite: public Socket
-        {
-            //! Sole Constructor
-            /*!
-             * @param[in] fd_ File descriptor of socket
-             * @param[in] erno_ Associated errno
-             */
-            SocketWrite(int fd_, int erno_);
-        };
-        
-        //! %Exception for read errors to sockets
-        struct SocketRead: public Socket
-        {
-            //! Sole Constructor
-            /*!
-             * @param[in] fd_ File descriptor of socket
-             * @param[in] erno_ Associated errno
-             */
-            SocketRead(int fd_, int erno_);
-        };
-        
-        //! %Exception for poll() errors
-        struct SocketPoll: public CodedException
-        {
-            //! Sole Constructor
-            /*!
-             * @param[in] erno_ Associated errno
-             */
-            SocketPoll(int erno_);
-        };
-    }
 }
 
 #endif

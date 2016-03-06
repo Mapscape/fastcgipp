@@ -18,357 +18,206 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
 ****************************************************************************/
 
-
 #include <fastcgi++/transceiver.hpp>
 
-int Fastcgipp::Transceiver::transmit()
+void Fastcgipp::Transceiver::transmit()
 {
-    while(1)
+    while(!m_sendBuffer.empty())
     {{
-        Buffer::ReadBlock sendBlock(buffer.requestRead());
-        if(sendBlock.size)
-        {
-            ssize_t sent = write(sendBlock.fd, sendBlock.data, sendBlock.size);
-            if(sent<0)
-            {
-                if(errno==EPIPE || errno==EBADF)
-                {
-                    freeFd(sendBlock.fd);
-                    sent=sendBlock.size;
-                }
-                else if(errno!=EAGAIN)
-                    throw Exceptions::SocketWrite(sendBlock.fd, errno);
-            }
-
-            buffer.freeRead(sent);
-            if(sent!=(ssize_t)sendBlock.size)
-                break;
-        }
-        else
+        SendBuffer::ReadBlock sendBlock(m_sendBuffer.requestRead());
+        const size_t sent = sendBlock.m_socket.write(
+                sendBlock.m_data,
+                sendBlock.m_size);
+        m_sendBuffer.free(sent);
+        if(sent != sendBlock.m_size)
             break;
     }}
-
-    return buffer.empty();
 }
 
-void Fastcgipp::Transceiver::Buffer::secureWrite(
+Fastcgipp::WriteBlock Fastcgipp::Transceiver::SendBuffer::requestWrite(
+        size_t size)
+{
+    m_writeLock.lock();
+    std::lock_guard<std::mutex> lock(m_bufferMutex);
+
+    return WriteBlock(
+            m_write->m_end,
+            std::min(
+                size,
+                (size_t)(
+                    m_write->m_data.get()
+                    +Chunk::size
+                    -m_write->m_end)
+                )
+            );
+}
+
+void Fastcgipp::Transceiver::SendBuffer::commitWrite(
         size_t size,
-        Protocol::FullId id,
+        const Socket& socket,
         bool kill)
 {
-    writeIt->end+=size;
-    if(minBlockSize>(writeIt->data.get()+Chunk::size-writeIt->end)
-            && ++writeIt==chunks.end())
+    std::lock_guard<std::mutex> lock(m_bufferMutex);
+
+    m_write->m_end += size;
+    if(minWriteBlockSize>(m_write->m_data.get()+Chunk::size-m_write->m_end))
     {
-        // We've got less than a minimum block size to offer to the next write
-        // request
-        chunks.push_back(Chunk());
-        --writeIt;
+        // We've got less than a minimum write block size left in this chunk
+        ++m_write;
+        if(m_write == m_chunks.end())
+        {
+            // We were on the last chunk!
+            m_chunks.push_back(Chunk());
+            --m_write;
+        }
     }
-    frames.push(Frame(size, kill, id));
+    m_frames.push(Frame(size, kill, socket));
+
+    m_writeLock.unlock();
 }
 
-bool Fastcgipp::Transceiver::handler()
+void Fastcgipp::Transceiver::handler()
 {
-    using namespace std;
-    using namespace Protocol;
-
-    bool transmitEmpty=transmit();
-
-    int retVal=poll(&pollFds.front(), pollFds.size(), 0);
-    if(retVal==0)
-    {
-        if(transmitEmpty) return true;
-        else return false;
-    }
-    if(retVal<0) throw Exceptions::SocketPoll(errno);
-    
-    std::vector<pollfd>::iterator pollFd = find_if(
-            pollFds.begin(),
-            pollFds.end(),
-            reventsZero);
-
-    if(pollFd->revents & (POLLHUP|POLLERR|POLLNVAL) )
-    {
-        fdBuffers.erase(pollFd->fd);
-        pollFds.erase(pollFd);
-        return false;
-    }
-    
-    int fd=pollFd->fd;
-    if(fd==socket)
-    {
-        sockaddr_un addr;
-        socklen_t addrlen=sizeof(sockaddr_un);
-        fd=accept(fd, (sockaddr*)&addr, &addrlen);
-        fcntl(fd, F_SETFL, (fcntl(fd, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
-        
-        pollFds.push_back(pollfd());
-        pollFds.back().fd = fd;
-        pollFds.back().events = POLLIN|POLLHUP|POLLERR|POLLNVAL;
-
-        Message& messageBuffer=fdBuffers[fd].messageBuffer;
-        messageBuffer.size=0;
-        messageBuffer.type=0;
-    }
-    else if(fd==wakeUpFdIn)
-    {
-        char x;
-        read(wakeUpFdIn, &x, 1);
-        return false;
-    }
-    
-    Message& messageBuffer=fdBuffers[fd].messageBuffer;
-    Header& headerBuffer=fdBuffers[fd].headerBuffer;
-
-    ssize_t actual;
-    // Are we in the process of recieving some part of a frame?
-    if(!messageBuffer.data)
-    {
-        // Are we recieving a partial header or new?
-        actual=read(
-                fd,
-                (char*)&headerBuffer+messageBuffer.size,
-                sizeof(Header)-messageBuffer.size);
-        if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
-        if(actual>0) messageBuffer.size+=actual;
-        
-        if( actual == 0 )
-        {
-            fdBuffers.erase( pollFd->fd );
-            pollFds.erase( pollFd );
-            return false;
-        }
-
-        if(messageBuffer.size!=sizeof(Header))
-        {
-            if(transmitEmpty) return true;
-            else return false;
-        }
-
-        messageBuffer.data.reset(new char[
-                sizeof(Header)
-                +headerBuffer.getContentLength()
-                +headerBuffer.getPaddingLength()]);
-        memcpy(
-                static_cast<void*>(messageBuffer.data.get()),
-                static_cast<const void*>(&headerBuffer),
-                sizeof(Header));
-    }
-
-    const Header& header=*(const Header*)messageBuffer.data.get();
-    size_t needed=
-        header.getContentLength()
-        +header.getPaddingLength()
-        +sizeof(Header)
-        -messageBuffer.size;
-    actual=read(
-            fd,
-            messageBuffer.data.get()+messageBuffer.size,
-            needed);
-    if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
-    if(actual>0) messageBuffer.size+=actual;
-
-    // Did we recieve a full frame?
-    if(actual==(ssize_t)needed)
-    {       
-        sendMessage(FullId(headerBuffer.getRequestId(), fd), messageBuffer);
-        messageBuffer.size=0;
-        messageBuffer.data.reset();
-        return false;
-    }
-    if(transmitEmpty) return true;
-    else return false;
+    transmit();
+    Socket socket = m_listener.poll(true);
+    receive(socket);
+    cleanupReceiveBuffers();
 }
 
-void Fastcgipp::Transceiver::Buffer::freeRead(size_t size)
+void Fastcgipp::Transceiver::SendBuffer::free(size_t size)
 {
-    pRead+=size;
-    if(pRead>=chunks.begin()->end)
+    std::lock_guard<std::mutex> lock(m_bufferMutex);
+
+    m_read += size;
+    if(m_write != m_chunks.begin() && m_read >= m_chunks.begin()->m_end)
     {
         // We have read everything out of the first chunk
-        if(writeIt==chunks.begin())
+        if(m_write == --m_chunks.end())
         {
-            // We've actually read everything in all chunks
-            pRead=writeIt->data.get();
-            writeIt->end=pRead;
+            // We are currently writing to the last chunk so we'll need a new
+            // chunk at the end of the buffer so let us move the fully read
+            // first chunk to the end
+            m_chunks.begin()->m_end = m_chunks.begin()->m_data.get();
+            m_chunks.splice(
+                    m_chunks.end(),
+                    m_chunks,
+                    m_chunks.begin());
         }
         else
         {
-            if(writeIt==--chunks.end())
-            {
-                // We need a new chunk at the end of the buffer so let us
-                // move the fully read first chunk to the end
-                chunks.begin()->end=chunks.begin()->data.get();
-                chunks.splice(chunks.end(), chunks, chunks.begin());
-            }
-            else
-                // We don't need this first chunk at all anymore. Free it up.
-                chunks.pop_front();
-            // Of course set the read pointer to the start of the next chunk
-            pRead=chunks.begin()->data.get();
+            // We don't need this first chunk at all anymore. Free it up.
+            m_chunks.pop_front();
         }
+
+        // Of course set the read pointer to the start of the next chunk
+        m_read = m_chunks.begin()->m_data.get();
     }
-    if((frames.front().size-=size)==0)
+
+    m_frames.front().m_size -= size;
+    if(m_frames.front().m_size == 0)
     {
         // We've read out a full frames worth of data
-        if(frames.front().closeFd)
-            freeFd(frames.front().id.fd);
-        frames.pop();
-    }
-}
+        if(m_frames.front().m_close)
+            m_frames.front().m_socket.close();
 
-void Fastcgipp::Transceiver::wake()
-{
-    char x=0;
-    write(wakeUpFdOut, &x, 1);
+        m_frames.pop();
+    }
 }
 
 Fastcgipp::Transceiver::Transceiver(
-        int fd_,
-        boost::function<void(Protocol::FullId, Message)> sendMessage_):
-    buffer(pollFds, fdBuffers),
-    sendMessage(sendMessage_),
-    pollFds(2),
-    socket(fd_)
-{
-    socket=fd_;
-    
-    // Let's setup a in/out socket for waking up poll()
-    int socPair[2];
-    socketpair(AF_UNIX, SOCK_STREAM, 0, socPair);
-    wakeUpFdIn=socPair[0];
-    fcntl(
-            wakeUpFdIn,
-            F_SETFL,
-            (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK); 
-    wakeUpFdOut=socPair[1]; 
-    
-    fcntl(socket, F_SETFL, (fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
-    pollFds[0].events = POLLIN|POLLHUP;
-    pollFds[0].fd = socket;
-    pollFds[1].events = POLLIN|POLLHUP;
-    pollFds[1].fd = wakeUpFdIn;
-}
+        const socket_t& socket,
+        std::function<void(Protocol::RequestId, Message&&)> sendMessage):
+    m_sendMessage(sendMessage),
+    m_listener(socket)
+{}
 
-Fastcgipp::Exceptions::SocketWrite::SocketWrite(
-        int fd_,
-        int erno_):
-    Socket(fd_, erno_)
+void Fastcgipp::Transceiver::cleanupReceiveBuffers()
 {
-    switch(errno)
+    auto buffer=m_receiveBuffers.begin();
+
+    while(buffer != m_receiveBuffers.end())
     {
-        case EAGAIN:
-            msg = "The file descriptor has been marked non-blocking (O_NONBLOCK) and the write would block.";
-            break;
-
-        case EBADF:
-            msg = "The file descriptor is not a valid file descriptor or is not open for writing.";
-            break;
-
-        case EFAULT:
-            msg = "The buffer is outside your accessible address space.";
-            break;
-
-        case EFBIG:
-            msg = "An attempt was made to write a file that exceeds the implementation-defined maximum file size or the process’s file size limit, or to write at a position past the maximum allowed offset.";
-            break;
-
-        case EINTR:
-            msg = "The call was interrupted by a signal before any data was written; see signal(7).";
-            break;
-
-        case EINVAL:
-            msg = "The file descriptor is attached to an object which is unsuitable for writing; or the file was opened with the O_DIRECT flag, and either the address specified for the buffer, the value specified in count, or the current file offset is not suitably aligned.";
-            break;
-
-        case EIO:
-            msg = "A low-level I/O error occurred while modifying the inode.";
-            break;
-
-        case ENOSPC:
-            msg = "The device containing the file referred to by the file descriptor has no room for the data.";
-            break;
-
-        case EPIPE:
-            msg = "The file descriptor is connected to a pipe or socket whose reading end is closed.  When this happens the writing process will also receive a SIGPIPE signal.  (Thus, the write return value is seen only if the program catches, blocks or ignores this signal.)";
-            break;
+        if(buffer->first.valid())
+            ++buffer;
+        else
+            buffer = m_receiveBuffers.erase(buffer);
     }
 }
 
-Fastcgipp::Exceptions::SocketRead::SocketRead(int fd_, int erno_): Socket(fd_, erno_)
+void Fastcgipp::Transceiver::receive(Socket& socket)
 {
-    switch(errno)
+    if(socket.valid())
     {
-        case EAGAIN:
-            msg = "Non-blocking I/O has been selected using O_NONBLOCK and no data was immediately available for reading.";
-            break;
+        Message& messageBuffer=m_receiveBuffers[socket].message;
+        Protocol::Header& headerBuffer=m_receiveBuffers[socket].header;
 
-        case EBADF:
-            msg = "The file descriptor is not valid or is not open for reading.";
-            break;
+        size_t actual;
+        // Are we in the process of recieving some part of a frame?
+        if(!messageBuffer.data)
+        {
+            // Are we recieving a partial header or new? We are using
+            // messageBuffer.size to indicate where we are in the header's
+            // reception.
+            actual=socket.read(
+                    (char*)&headerBuffer+messageBuffer.size,
+                    sizeof(Protocol::Header)-messageBuffer.size);
+            if(!socket.valid())
+            {
+                m_receiveBuffers.erase(socket);
+                return;
+            }
 
-        case EFAULT:
-            msg = "The buffer is outside your accessible address space.";
-            break;
+            messageBuffer.size += actual;
 
-        case EINTR:
-            msg = "The call was interrupted by a signal before any data was written; see signal(7).";
-            break;
+            if(messageBuffer.size != sizeof(Protocol::Header))
+                return;
 
-        case EINVAL:
-            msg = "The file descriptor is attached to an object which is unsuitable for reading; or the file was opened with the O_DIRECT flag, and either the address specified in buf, the value specified in count, or the current file offset is not suitably aligned.";
-            break;
+            messageBuffer.data.reset(new char[
+                    sizeof(Protocol::Header)
+                    +headerBuffer.contentLength
+                    +headerBuffer.paddingLength]);
+            std::copy(
+                    (const char*)(&headerBuffer),
+                    (const char*)(&headerBuffer)+sizeof(Protocol::Header),
+                    messageBuffer.data.get());
+        }
 
-        case EIO:
-            msg = "I/O error.  This will happen for example when the process is in a background process group, tries to read from its controlling tty, and either it is ignoring or blocking SIGTTIN or its process group is orphaned.  It may also occur when there is a low-level I/O error while reading from a disk or tape.";
-            break;
+        const Protocol::Header& header=
+            *(const Protocol::Header*)messageBuffer.data.get();
+        const size_t needed=
+            header.contentLength
+            +header.paddingLength
+            +sizeof(Protocol::Header)
+            -messageBuffer.size;
 
-        case EISDIR:
-            msg = "The file descriptor refers to a directory.";
-            break;
+        actual=socket.read(
+                messageBuffer.data.get()+messageBuffer.size,
+                needed);
+        if(!socket.valid())
+        {
+            m_receiveBuffers.erase(socket);
+            return;
+        }
+        messageBuffer.size += actual;
+
+        // Did we recieve a full frame?
+        if(actual==needed)
+        {       
+            m_sendMessage(
+                    Protocol::RequestId(header.fcgiId, socket),
+                    std::move(messageBuffer));
+            messageBuffer.size=0;
+            messageBuffer.data.reset();
+        }
     }
 }
 
-Fastcgipp::Exceptions::SocketPoll::SocketPoll(int erno_): CodedException(0, erno_)
+Fastcgipp::Transceiver::SendBuffer::ReadBlock
+Fastcgipp::Transceiver::SendBuffer::requestRead()
 {
-    switch(errno)
-    {
-        case EBADF:
-            msg = "An invalid file descriptor was given in one of the sets.";
-            break;
-
-        case EFAULT:
-            msg = "The array given as argument was not contained in the calling program’s address space.";
-            break;
-
-        case EINTR:
-            msg = "A signal occurred before any requested event; see signal(7).";
-            break;
-
-        case EINVAL:
-            msg = "The nfds value exceeds the RLIMIT_NOFILE value.";
-            break;
-
-        case ENOMEM:
-            msg = "There was no space to allocate file descriptor tables.";
-            break;
-    }
-}
-
-void Fastcgipp::Transceiver::freeFd(
-        int fd,
-        std::vector<pollfd>& pollFds,
-        std::map<int, fdBuffer>& fdBuffers)
-{
-    std::vector<pollfd>::iterator it=std::find_if(
-            pollFds.begin(),
-            pollFds.end(),
-            equalsFd(fd));
-    if(it != pollFds.end())
-    {
-        pollFds.erase(it);
-        close(fd);
-        fdBuffers.erase(fd);
-    }
+    std::lock_guard<std::mutex> lock(m_bufferMutex);
+    return ReadBlock(
+            m_read,
+            m_frames.front().m_size,
+            m_frames.front().m_socket);
 }
