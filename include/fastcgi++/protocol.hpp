@@ -5,9 +5,6 @@
  * @date       March 6, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
- *
- * It is this file, along with sockets.hpp, that must be modified to make
- * fastcgi++ work on any non-linux operating system.
  */
 
 /*******************************************************************************
