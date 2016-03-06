@@ -37,6 +37,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <condition_variable>
 
 #include <fastcgi++/protocol.hpp>
 
@@ -86,6 +87,9 @@ namespace Fastcgipp
      * This class handles the sending/receiving/buffering of data through the OS
      * level sockets and also the creation/destruction of the sockets
      * themselves.
+     *
+     * @date    March 6, 2016
+     * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Transceiver
     {
@@ -96,11 +100,16 @@ namespace Fastcgipp
          * passed to it from requests and relay received data back to them as a
          * Message. The function will return true if there is nothing at all for
          * it to do.
-         *
-         * @return Boolean value indicating whether there is data to be
-         *         transmitted or received
          */
         void handler();
+
+        //! Call from any thread to terminate the handler() thread
+        /*!
+         * Calling this thread will signal the handler() thread to cleanly
+         * terminate itself and return. Calls to this will block until
+         * termination is complete.
+         */
+        void terminate();
 
         //! Request a write block in the buffer for transmission
         /*!
@@ -167,6 +176,9 @@ namespace Fastcgipp
          * All data written to the buffer has an associated file descriptor and
          * FastCGI ID through which it is flushed. This association with data is
          * managed through a queue of Frame objects.
+         *
+         * @date    March 6, 2016
+         * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class SendBuffer
         {
@@ -359,6 +371,15 @@ namespace Fastcgipp
 
         //! Receive data on the specified socket.
         inline void receive(Socket& socket);
+
+        //! True when handler() should be terminating
+        bool m_terminate;
+
+        //! Termination mutex
+        std::mutex m_terminateMutex;
+
+        //! Termination condition variable
+        std::condition_variable m_terminateCV;
     };
 }
 

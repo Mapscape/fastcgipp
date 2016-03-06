@@ -86,10 +86,28 @@ void Fastcgipp::Transceiver::SendBuffer::commitWrite(
 
 void Fastcgipp::Transceiver::handler()
 {
-    transmit();
-    Socket socket = m_listener.poll(true);
-    receive(socket);
-    cleanupReceiveBuffers();
+    std::unique_lock<std::mutex> lock(m_terminateMutex);
+    m_terminate=false;
+
+    while(!m_terminate)
+    {
+        lock.unlock();
+
+        transmit();
+        Socket socket = m_listener.poll(true);
+        receive(socket);
+        cleanupReceiveBuffers();
+
+        lock.lock();
+    }
+}
+
+void Fastcgipp::Transceiver::terminate()
+{
+    std::unique_lock<std::mutex> lock(m_terminateMutex);
+    m_terminate=true;
+    m_listener.wake();
+    m_terminateCV.wait(lock);
 }
 
 void Fastcgipp::Transceiver::SendBuffer::free(size_t size)
@@ -136,7 +154,8 @@ Fastcgipp::Transceiver::Transceiver(
         const socket_t& socket,
         std::function<void(Protocol::RequestId, Message&&)> sendMessage):
     m_sendMessage(sendMessage),
-    m_listener(socket)
+    m_listener(socket),
+    m_terminate(false)
 {}
 
 void Fastcgipp::Transceiver::cleanupReceiveBuffers()
