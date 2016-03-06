@@ -21,7 +21,7 @@
 #ifndef MESSAGE_HPP
 #define MESSAGE_HPP
 
-#include <boost/shared_array.hpp>
+#include <memory>
 
 namespace Fastcgipp
 {
@@ -44,7 +44,7 @@ namespace Fastcgipp
 		//! Size of the data section.
 		size_t size;
 		//! Pointer to the raw data being passed along with the message.
-		boost::shared_array<char> data;
+		std::unique_ptr<char> data;
 	};
 }
 
