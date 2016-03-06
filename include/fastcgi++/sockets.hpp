@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 4, 2016
+ * @date       March 5, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU General Public License Version 3.
  *
@@ -61,7 +61,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    March 4, 2016
+     * @date    March 5, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -246,7 +246,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    March 4, 2016
+     * @date    March 5, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Listener
@@ -259,7 +259,7 @@ namespace Fastcgipp
          *
          * @param[in] listen Socket identifier to listen for connections on
          */
-        Listener(socket_t listen);
+        Listener(const socket_t& listen);
 
         //! Poll socket set for new incoming connections and data.
         /*!

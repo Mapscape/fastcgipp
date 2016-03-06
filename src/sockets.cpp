@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 4, 2016
+ * @date       March 5, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU General Public License Version 3.
  *
@@ -106,7 +106,7 @@ void Fastcgipp::Socket::close()
     }
 }
 
-Fastcgipp::Listener::Listener(socket_t listen):
+Fastcgipp::Listener::Listener(const socket_t& listen):
     m_listen(listen),
     m_poll(epoll_create1(0)),
     m_sleeping(false)
