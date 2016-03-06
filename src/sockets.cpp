@@ -234,7 +234,7 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
                 }
             }
         }
-        
+
         return Socket();
     }
 }
