@@ -2,7 +2,7 @@
  * @file       protocol.cpp
  * @brief      Defines everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 12, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -28,7 +28,7 @@
 
 #include "fastcgi++/protocol.hpp"
 
-void Fastcgipp::Protocol::processParamHeader(
+bool Fastcgipp::Protocol::processParamHeader(
         const char* data,
         size_t dataSize,
         const char*& name,
@@ -36,21 +36,45 @@ void Fastcgipp::Protocol::processParamHeader(
         const char*& value,
         size_t& valueSize)
 {
-    if(*data>>7)
+    if(dataSize < 1)
+        return false;
+    if(*data & 0x80)
     {
+        if(dataSize < 4)
+            return false;
+        dataSize -= 4;
+
         nameSize=BigEndian<uint32_t>::read(data) & 0x7fffffff;
         data+=sizeof(uint32_t);
     }
-    else nameSize=*data++;
-
-    if(*data>>7)
+    else
     {
+        dataSize -= 1;
+        nameSize=*data++;
+    }
+
+    if(dataSize < 1)
+        return false;
+    if(*data & 0x80)
+    {
+        if(dataSize < 4)
+            return false;
+        dataSize -= 4;
+
         valueSize=BigEndian<uint32_t>::read(data) & 0x7fffffff;
         data+=sizeof(uint32_t);
     }
-    else valueSize=*data++;
+    else
+    {
+        valueSize=*data++;
+        dataSize -= 1;
+    }
+
+    if(dataSize < nameSize+valueSize)
+        return false;
     name=data;
     value=name+nameSize;
+    return true;
 }
 
 const Fastcgipp::Protocol::ManagementReply<14, 2>

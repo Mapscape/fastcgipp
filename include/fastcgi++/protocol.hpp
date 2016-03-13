@@ -2,7 +2,7 @@
  * @file       protocol.hpp
  * @brief      Declares everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 12, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -339,6 +339,10 @@ namespace Fastcgipp
          * parses it. You end up with a pointer/size for both the name and value
          * of the parameter.
          *
+         * The return value indicates whether or not there is actually
+         * sufficient data in the array to to read both the sizes and the values
+         * themselves.
+         *
          * @param[in] data Pointer to the record body
          * @param[in] dataSize Size of data pointed to by data
          * @param[out] name Reference to a pointer that will be pointed to the
@@ -349,8 +353,9 @@ namespace Fastcgipp
          *                   first byte of the parameter value
          * @param[out] valueSize Reference to a value to will be given the size
          *                       in bytes of the parameter value
+         * @return False if out of bounds. True otherwise.
          */
-        void processParamHeader(
+        bool processParamHeader(
                 const char* data,
                 size_t dataSize,
                 const char*& name,
