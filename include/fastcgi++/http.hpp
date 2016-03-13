@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 11, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -30,18 +30,18 @@
 #define HTTP_HPP
 
 #include <string>
-#include <boost/shared_array.hpp>
-#include <boost/scoped_array.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
 #include <ostream>
 #include <istream>
+#include <iterator>
 #include <cstring>
-#include <sstream>
 #include <algorithm>
 #include <map>
 #include <vector>
+#include <memory>
+#include <array>
+#include <ctime>
+#include <cstring>
 
-#include <fastcgi++/exceptions.hpp>
 #include <fastcgi++/protocol.hpp>
 
 //! Topmost namespace for the fastcgi++ library
@@ -50,44 +50,29 @@ namespace Fastcgipp
     //! Defines classes and functions relating to the HTTP protocol
     namespace Http
     {
-        //! Holds a piece of HTTP post data
+        //! Holds a file uploaded from the client
         /*!
-         * This structure will hold one of two types of HTTP post data. It can
-         * either contain form data, in which case the data field is empty and
-         * the size is zero; or it can hold an uploaded file, in which case
-         * data contains a pointer to the file data, size contains it's size
-         * and value holds it's filename. The actual name associated with the
-         * piece of post data is omitted from the class so it can be linked in
-         * an associative container.
+         * The actual name associated with the file is omitted from the class
+         * so it can be linked in an associative container.
          *
          * @tparam charT Type of character to use in the value string (char or
          *               wchar_t)
          *
-         * @date    March 6, 2016
+         * @date    March 11, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
-        template<class charT> struct Post
+        template<class charT> struct File
         {
-            //! Type of POST data piece
-            enum Type
-            {
-                file,
-                form
-            } type;
+            //! Filename
+            std::basic_string<charT> filename;
 
-            //! Value of POST data if type=form
-            std::basic_string<charT> value;
-
-            //! Filename of POST data if type=file
-            std::basic_string<charT>& filename;
-
-            //! Content Type if type=file
+            //! Content Type
             std::basic_string<charT> contentType;
 
             //! Pointer to file data
             const char* data() const
             {
-                return m_data;
+                return m_data.get();
             }
 
             //! Size of file data
@@ -96,34 +81,28 @@ namespace Fastcgipp
                 return m_size;
             }
 
-            //! Expropriate/release the file data.
-            char* steal() const
+            //! Release the file data.
+            char* release() const
             {
-                char* ptr=m_data;
-                m_data=0;
                 m_size=0;
-                return ptr;
+                return m_data.release();
             }
 
-            Post():
-                filename(value),
-                m_data(0),
+            File():
                 m_size(0)
             {}
 
-            Post(const Post& x):
-                type(x.type),
-                value(x.value),
-                filename(value),
-                contentType(x.contentType),
-                m_data(x.steal()),
+            //! Move constructor
+            File(File&& x):
+                filename(std::move(x.filename)),
+                contentType(std::move(x.contentType)),
+                m_data(std::move(x.m_data)),
                 m_size(x.m_size)
             {}
 
-            ~Post() { delete [] m_data; }
         private:
             //! Pointer to file data
-            mutable char* m_data;
+            mutable std::unique_ptr<char> m_data;
 
             //! Size of data in bytes pointed to by data.
             mutable size_t m_size;
@@ -132,27 +111,28 @@ namespace Fastcgipp
         };
 
         //! The HTTP request method as an enumeration
-        enum RequestMethod
+        enum class RequestMethod
         {
-            HTTP_METHOD_ERROR,
-            HTTP_METHOD_HEAD,
-            HTTP_METHOD_GET,
-            HTTP_METHOD_POST,
-            HTTP_METHOD_PUT,
-            HTTP_METHOD_DELETE,
-            HTTP_METHOD_TRACE,
-            HTTP_METHOD_OPTIONS,
-            HTTP_METHOD_CONNECT
+            ERROR=0,
+            HEAD=1,
+            GET=2,
+            POST=3,
+            PUT=4,
+            DELETE=5,
+            TRACE=6,
+            OPTIONS=7,
+            CONNECT=8
         };
 
-        extern const char* requestMethodLabels[];
+        //! Some textual labels for RequestMethod
+        extern const std::array<const char* const, 9> requestMethodLabels;
 
         template<class charT, class Traits>
         inline std::basic_ostream<charT, Traits>& operator<<(
                 std::basic_ostream<charT, Traits>& os,
                 const RequestMethod requestMethod)
         {
-            return os << requestMethodLabels[requestMethod];
+            return os << requestMethodLabels[(int)requestMethod];
         }
 
         //! Efficiently stores IPv6 addresses
@@ -164,7 +144,7 @@ namespace Fastcgipp
          * for netmask calculation. It detects when an IPv4 address is stored
          * outputs it accordingly.
          *
-         * @date    March 6, 2016
+         * @date    March 11, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class Address
@@ -173,47 +153,37 @@ namespace Fastcgipp
             //! This is the data length of the IPv6 address
             static const size_t size=16;
 
-            //! Retrieve a const pointer to the raw data of the IPv6 address
-            /*!
-             * @return Constant pointer to data array representing the raw IPv6
-             *         address
-             */
-            const unsigned char* data() const { return m_data; }
-
-            //! Retrieve a pointer to the raw data of the IPv6 address
-            /*!
-             * @return Pointer to data array representing the raw IPv6 address
-             */
-            unsigned char* data() { return m_data; }
+            //! Data representation of the IPv6 address
+            std::array<unsigned char, size> m_data;
 
             //! Assign the IPv6 address from a data array
             /*!
              * @param[in] data_ Pointer to a 16 byte array
              */
-            Address operator=(const unsigned char* data_)
+            Address operator=(const unsigned char* data)
             {
-                std::memcpy(m_data, data_, size);
+                std::copy(m_data.begin(), m_data.end(), data);
                 return *this;
             }
 
             Address operator=(const Address& address)
             {
-                std::memcpy(m_data, address.m_data, size);
+                std::copy(m_data.begin(), m_data.end(), address.m_data.begin());
                 return *this;
             }
 
             Address(const Address& address)
             {
-                std::memcpy(m_data, address.m_data, size);
+                std::copy(m_data.begin(), m_data.end(), address.m_data.begin());
             }
 
             //! Construct the IPv6 address from a data array
             /*!
              * @param[in] data_ Pointer to a 16 byte array
              */
-            explicit Address(const unsigned char* data_)
+            explicit Address(const unsigned char* data)
             {
-                std::memcpy(m_data, data_, size);
+                std::copy(m_data.begin(), m_data.end(), data);
             }
 
             //! Assign the IP address from a string of characters
@@ -224,32 +194,20 @@ namespace Fastcgipp
              *
              * @param[in] start First character of the string
              * @param[in] end Last character of the string + 1
+             * @tparam charT Character type.
              */
-            void assign(const char* start, const char* end);
+            template<class charT> void assign(
+                    const charT* start,
+                    const charT* end);
 
-            inline bool operator==(const Address& x) const
+            bool operator==(const Address& x) const
             {
-                return std::memcmp(m_data, x.m_data, size)==0;
+                return std::memcmp(m_data.data(), x.m_data.data(), size)==0;
             }
 
-            inline bool operator>(const Address& x) const
+            bool operator<(const Address& x) const
             {
-                return std::memcmp(m_data, x.m_data, size)>0;
-            }
-
-            inline bool operator<(const Address& x) const
-            {
-                return std::memcmp(m_data, x.m_data, size)<0;
-            }
-
-            inline bool operator<=(const Address& x) const
-            {
-                return !(std::memcmp(m_data, x.m_data, size)>0);
-            }
-
-            inline bool operator>=(const Address& x) const
-            {
-                return !(std::memcmp(m_data, x.m_data, size)<0);
+                return std::memcmp(m_data.data(), x.m_data.data(), size)<0;
             }
 
             //! Returns false if the ip address is zeroed. True otherwise
@@ -259,15 +217,11 @@ namespace Fastcgipp
 
             Address& operator&=(const Address& x);
 
-            //! Set all bits to zero in ip address
+            //! Set all bits to zero in IP address
             void zero()
             {
-                std::memset(m_data, 0, size);
+                m_data.fill(0);
             }
-
-        private:
-            //! Data representation of the IPv6 address
-            unsigned char m_data[size];
         };
 
         //! Address stream insertion operation
@@ -298,6 +252,9 @@ namespace Fastcgipp
          * records.
          *
          * @tparam charT Character type to use for strings
+         *
+         * @date    March 11, 2016
+         * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         template<class charT> struct Environment
         {
@@ -362,68 +319,27 @@ namespace Fastcgipp
             uint16_t remotePort;
 
             //! Timestamp the client has for this document
-            boost::posix_time::ptime ifModifiedSince;
-
-            //! Container type with all url-encoded cookie data
-            typedef std::map<std::basic_string<charT>, std::basic_string<charT>>
-                Cookies;
+            std::time_t ifModifiedSince;
 
             //! Container with all url-encoded cookie data
-            Cookies cookies;
-
-            //! Quick and easy way to find a cookie value
-            const std::basic_string<charT>& findCookie(const charT* key) const;
-
-            //! Container type with all url-encoded GET data
-            typedef std::map<std::basic_string<charT>, std::basic_string<charT>>
-                Gets;
+            std::multimap<
+                std::basic_string<charT>,
+                std::basic_string<charT>> cookies;
 
             //! Container with all url-encoded GET data
-            Gets gets;
+            std::multimap<
+                std::basic_string<charT>,
+                std::basic_string<charT>> gets;
 
-            //! Quick and easy way to find a GET value
-            /*!
-             * @param[in] key C-string representation of the name of the GET
-             *                value you want
-             * @return Constant reference to the string representation of the
-             *         GET value. If the GET value does not exist this will
-             *         return an empty string;
-             */
-            const std::basic_string<charT>& findGet(const charT* key) const;
+            //! Container of none-file POST data
+            std::multimap<
+                std::basic_string<charT>,
+                std::basic_string<charT>> posts;
 
-            //! Quick and easy way to check if a GET value exists.
-            /*!
-             * @param[in] key C-string representation of the name of the GET
-             *                value you want
-             * @return True if the value was passed from the client, false
-             *              otherwise.
-             */
-            bool checkForGet(const charT* key) const;
-
-            //! Container type associating Post objects with their name
-            typedef std::map<std::basic_string<charT>, Post<charT>> Posts;
-
-            //! Container type associating Post objects with their name
-            Posts posts;
-
-            //! Quick and easy way to find a POST value
-            /*!
-             * @param[in] key C-string representation of the name of the POST
-             *                value you want
-             * @return Constant reference to the Post object created for the
-             *         POST value. If the POST value does not exist this will
-             *         return a default constructed Post object.
-             */
-            const Post<charT>& findPost(const charT* key) const;
-
-            //! Quick and easy way to check if a POST value exists.
-            /*!
-             * @param[in] key C-string representation of the name of the POST
-             *                value you want.
-             * @return True if the value was passed from the client, false
-             *         otherwise.
-             */
-            bool checkForPost(const charT* key) const;
+            //! Container of file POST data
+            std::multimap<
+                std::basic_string<charT>,
+                File<charT>> files;
 
             //! Parses FastCGI parameter data into the data structure
             /*!
@@ -432,10 +348,10 @@ namespace Fastcgipp
              * the first character of the records body with size being it's
              * content length.
              *
-             * @param[in] data Pointer to the first byte of parameter data
-             * @param[in] size Size of data in bytes
+             * @param[in] start Pointer to the first byte of parameter data
+             * @param[in] end Pointer to 1+ the last byte of parameter data
              */
-            void fill(const char* data, size_t size);
+            void fill(const char* start, const char* end);
 
             //! Consolidates POST data into a single buffer
             /*!
@@ -444,31 +360,33 @@ namespace Fastcgipp
              *
              * @param[in] data Pointer to the first byte of post data.
              * @param[in] size Size of data in bytes.
-             * @return Returns true unless the buffer overflowed.
              */
-            bool fillPostBuffer(const char* data, size_t size);
+            void fillPostBuffer(const char* data, size_t size);
 
-            //! Parses "multipart/form-data" http post data into the posts object
-            void parsePostsMultipart();
-
-            //! Parses "application/x-www-form-urlencoded" post data into the posts object.
-            void parsePostsUrlEncoded();
+            //! Attempts to parse the POST buffer
+            /*!
+             * If the content type is recognized, this function will parse the
+             * post buffer and return true. If it isn't recognized, it will
+             * return false.
+             *
+             * @return True if successfully parsed. False otherwise.
+             */
+            bool parsePostBuffer();
 
             //! Get the post buffer
-            const char* postBuffer() const
+            const std::vector<char>& postBuffer() const
             {
-                return m_postBuffer.get();
+                return m_postBuffer;
             }
 
             //! Clear the post buffer
             void clearPostBuffer()
             {
-                m_postBuffer.reset();
-                pPostBuffer=0;
+                m_postBuffer.clear();
             }
 
             Environment():
-                requestMethod(HTTP_METHOD_ERROR),
+                requestMethod(RequestMethod::ERROR),
                 etag(0),
                 keepAlive(0),
                 contentLength(0),
@@ -476,49 +394,42 @@ namespace Fastcgipp
                 remotePort(0)
             {}
         private:
-            //! Raw string of characters representing the post boundary
-            boost::scoped_array<char> boundary;
+            //! Parses "multipart/form-data" http post data
+            inline void parsePostsMultipart();
 
-            //! Size of boundary
-            size_t boundarySize;
+            //! Parses "application/x-www-form-urlencoded" post data
+            inline void parsePostsUrlEncoded();
+
+            //! Raw string of characters representing the post boundary
+            std::vector<char> boundary;
 
             //! Buffer for processing post data
-            boost::scoped_array<char> m_postBuffer;
-
-            //! Pointer in buffer
-            char* pPostBuffer;
-
-            //! Returns minimum buffer size remaining
-            size_t minPostBufferSize(const size_t size)
-            {
-                return std::min(
-                        size,
-                        size_t(m_postBuffer.get()+contentLength-pPostBuffer));
-            }
+            std::vector<char> m_postBuffer;
         };
 
         //! Convert a char string to a std::wstring
         /*!
-         * @param[in] data First byte in char string
-         * @param[in] size Size in bytes of the string (no null terminator)
+         * @param[in] start First byte in char string
+         * @param[in] end 1+ last byte of the string (no null terminator)
          * @param[out] string Reference to the wstring that should be modified
-         * @return Returns true on success, false on failure
          */
-        void charToString(const char* data, size_t size, std::wstring& string);
+        void charToString(
+                const char* start,
+                const char* end,
+                std::wstring& string);
 
         //! Convert a char string to a std::string
         /*!
-         * @param[in] data First byte in char string
-         * @param[in] size Size in bytes of the string (no null terminator)
+         * @param[in] start First byte in char string
+         * @param[in] end 1+ last byte of the string (no null terminator)
          * @param[out] string Reference to the string that should be modified
-         * @return Returns true on success, false on failure
          */
         inline void charToString(
-                const char* data,
-                size_t size,
+                const char* start,
+                const char* end,
                 std::string& string)
         {
-            string.assign(data, size);
+            string.assign(start, end);
         }
 
         //! Convert a char string to an integer
@@ -535,42 +446,45 @@ namespace Fastcgipp
          */
         int atoi(const char* start, const char* end);
 
-        //! Decodes a url-encoded string into a container
+        //! Decodes a url-encoded string into a multimap container
         /*!
-         * @param[in] data Data to decode
-         * @param[in] size Size of data to decode
+         * @param[in] start Data to decode
+         * @param[in] end +1 last byte to decode
          * @param[out] output Container to output data into
-         *
-         * @return Returns false if the name isn't found. True otherwise.
+         * @param[in] fieldSeparator Character that signifies field separation
          */
         template<class charT> void decodeUrlEncoded(
-                const char* data,
-                size_t size,
-                std::map<std::basic_string<charT>, std::basic_string<charT>>& output,
-                const char fieldSeperator='&');
+                const char* start,
+                const char* end,
+                std::multimap<
+                    std::basic_string<charT>,
+                    std::basic_string<charT>>& output,
+                const char fieldSeparator='&');
 
         //! Convert a string with percent escaped byte values to their values
         /*!
-         *  Since converting a percent escaped string to actual values can only
-         *  make it shorter, it is safe to assume that the return value will
-         *  always be smaller than size. It is thereby a safe move to make the
-         *  destination block of memory the same size as the source.
+         * Since converting a percent escaped string to actual values can only
+         * make it shorter, it is safe to assume that the return value will
+         * always be smaller than size. It is thereby a safe move to make the
+         * destination block of memory the same size as the source.
          *
-         * @param[in] source Pointer to the first character in the percent
-         *                   escaped string
-         * @param[in] size Size in bytes of the data pointed to by source (no
-         *                 null termination)
+         * @param[in] start Iterator to the first character in the percent
+         *                  escaped string
+         * @param[in] end Iterator to +1 the last character in the percent
+         *                escaped string
          * @param[out] destination Pointer to the section of memory to write the
          *                         converted string to
-         * @return Actual size of the new string
+         * @return Iterator to +1 the last character written
+         * @tparam InputIt Input iterator used for the destination.
+         * @tparam OutputIt Output iterator used for the source.
          */
-        size_t percentEscapedToRealBytes(
-                const char* source,
-                char* destination,
-                size_t size);
+        char* percentEscapedToRealBytes(
+                const char* start,
+                const char* end,
+                char destination);
 
         //! List of characters in order for Base64 encoding.
-        extern const char base64Characters[];
+        extern const std::array<const char, 64> base64Characters;
 
         //! Convert a binary container of data to a Base64 encoded container.
         /*!
@@ -610,21 +524,25 @@ namespace Fastcgipp
         Out base64Decode(In start, In end, Out destination);
 
         //! Defines ID values for HTTP sessions.
+        /*!
+         * @date    March 11, 2016
+         * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
+         */
         class SessionId
         {
         public:
             //! Size in bytes of the ID data
-            static const int size=12;
+            static const int size=24;
 
         private:
             //! ID data
-            char data[size];
+            std::array<unsigned char, size> m_data;
 
             //! Contains the time this session was last used
-            boost::posix_time::ptime timestamp;
+            mutable std::time_t m_timestamp;
 
             //! Set to true once the random number generator has been seeded
-            static bool seeded;
+            static bool m_seeded;
 
             template<class T> friend class Sessions;
         public:
@@ -632,15 +550,15 @@ namespace Fastcgipp
             SessionId();
 
             SessionId(const SessionId& x):
-                timestamp(x.timestamp)
+                m_timestamp(x.m_timestamp)
             {
-                std::memcpy(data, x.data, size);
+                std::copy(m_data.begin(), m_data.end(), x.m_data.begin());
             }
 
             const SessionId& operator=(const SessionId& x)
             {
-                std::memcpy(data, x.data, size);
-                timestamp=x.timestamp;
+                std::copy(m_data.begin(), m_data.end(), x.m_data.begin());
+                m_timestamp=x.m_timestamp;
                 return *this;
             }
 
@@ -650,7 +568,7 @@ namespace Fastcgipp
              *
              * @param data_ Iterator set at begin of base64 encoded string
              */
-            template<class charT> const SessionId& operator=(charT* data_);
+            template<class charT> const SessionId& operator=(charT* data);
 
             //! Initialize the ID data with a base64 encoded string
             /*!
@@ -658,9 +576,9 @@ namespace Fastcgipp
              *
              * @param data_ Iterator set at begin of base64 encoded string
              */
-            template<class charT> SessionId(charT* data_)
+            template<class charT> SessionId(charT* data)
             {
-                *this=data_;
+                *this=data;
             }
 
             template<class charT, class Traits>
@@ -670,24 +588,24 @@ namespace Fastcgipp
 
             bool operator<(const SessionId& x) const
             {
-                return std::memcmp(data, x.data, SessionId::size)<0;
+                return std::memcmp(
+                        m_data.data(),
+                        x.m_data.data(),
+                        SessionId::size)<0;
             }
 
             bool operator==(const SessionId& x) const
             {
-                return std::memcmp(data, x.data, SessionId::size)==0;
+                return std::memcmp(
+                        m_data.data(),
+                        x.m_data.data(),
+                        SessionId::size)==0;
             }
 
             //! Resets the last access timestamp to the current time.
             void refresh() const
             {
-                *const_cast<boost::posix_time::ptime*>(&timestamp) = 
-                    boost::posix_time::second_clock::universal_time();
-            }
-
-            const char* getInternalPointer() const
-            {
-                return data;
+                m_timestamp = std::time(nullptr);
             }
         };
 
@@ -698,10 +616,11 @@ namespace Fastcgipp
                 const SessionId& x)
         {
             base64Encode(
-                    x.data,
-                    x.data+SessionId::size,
+                    x.m_data.begin(),
+                    x.m_data.end(),
                     std::ostream_iterator<charT, charT, Traits>(os));
-            return os; }
+            return os;
+        }
 
         //! Container for HTTP sessions
         /*!
@@ -712,18 +631,21 @@ namespace Fastcgipp
          *  of class T (passed as the template parameter.
          *
          * @tparam T Class containing session data.
+         *
+         * @date    March 11, 2016
+         * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         template<class T> class Sessions: public std::map<SessionId, T>
         {
         private:
             //! Amount of seconds to keep sessions around for.
-            const boost::posix_time::seconds keepAlive;
+            const unsigned int keepAlive;
 
             //! How often the container should find old sessions and purge.
-            const boost::posix_time::seconds cleanupFrequency;
+            const unsigned int cleanupFrequency;
 
             //! The time that the next session cleanup should be done.
-            boost::posix_time::ptime cleanupTime;
+            std::time_t cleanupTime;
         public:
             typedef typename std::map<SessionId, T>::iterator iterator;
 
@@ -738,13 +660,11 @@ namespace Fastcgipp
              *                              them.
              */
             Sessions(
-                    int keepAlive_,
-                    int cleanupFrequency_):
-                keepAlive(boost::posix_time::seconds(keepAlive_)),
-                cleanupFrequency(boost::posix_time::seconds(cleanupFrequency_)),
-                cleanupTime(
-                        boost::posix_time::second_clock::universal_time()
-                        +cleanupFrequency)
+                    unsigned int keepAlive_,
+                    unsigned int cleanupFrequency_):
+                keepAlive(keepAlive_),
+                cleanupFrequency(cleanupFrequency_),
+                cleanupTime(std::time(nullptr)+cleanupFrequency)
             {}
 
             //! Clean out old sessions.
@@ -764,32 +684,24 @@ namespace Fastcgipp
              * @return Iterator pointing to the newly created session.
              */
             iterator generate(const T& value_ = T());
-
-            boost::posix_time::ptime getExpiry(const_iterator it) const
-            {
-                return it->first.timestamp+keepAlive;
-            }
         };
     }
 }
 
 template<class T> void Fastcgipp::Http::Sessions<T>::cleanup()
 {
-    if(boost::posix_time::second_clock::universal_time() < cleanupTime)
+    if(std::time(nullptr) < cleanupTime)
         return;
-    boost::posix_time::ptime oldest(
-            boost::posix_time::second_clock::universal_time()
-            -keepAlive);
-    iterator it=this->begin();
-    while(it!=this->end())
+    std::time_t oldest(std::time(nullptr)-keepAlive);
+    iterator it = this->begin();
+    while(it != this->end())
     {
         if(it->first.timestamp < oldest)
-            erase(it++);
+            it = erase(it);
         else
             ++it;
     }
-    cleanupTime=boost::posix_time::second_clock::universal_time()
-        +cleanupFrequency;
+    cleanupTime=std::time(nullptr)+cleanupFrequency;
 }
 
 template<class In, class Out>
