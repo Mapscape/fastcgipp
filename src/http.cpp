@@ -133,21 +133,18 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
         const char* start,
         const char* end)
 {
-    while(size)
-    {{
-        size_t nameSize;
-        size_t valueSize;
-        const char* name;
-        const char* value;
-        Protocol::processParamHeader(
-                data,
-                size,
-                name,
-                nameSize,
-                value,
-                valueSize);
-        start = value+valueSize;
-
+    size_t nameSize;
+    size_t valueSize;
+    const char* name;
+    const char* value;
+    while(Protocol::processParamHeader(
+            start,
+            end-start,
+            name,
+            nameSize,
+            value,
+            valueSize))
+    {
         switch(nameSize)
         {
         case 9:
@@ -308,7 +305,8 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             }
             break;
         }
-    }}
+        start = value+valueSize;
+    }
 }
 
 template void Fastcgipp::Http::Environment<char>::fillPostBuffer(
