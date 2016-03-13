@@ -41,17 +41,8 @@ void Fastcgipp::Logging::timestamp()
     if(logTimestamp)
     {
         std::time_t now = std::time(nullptr);
-/***** std::put_time doesn't exist in gcc yet *****
         *logstream << std::put_time(
                 std::localtime(&now),
-                "[%Y-%b-%d %H:%M:%S.%f] ");
-***** So until it does we'll use the following trash *****/
-        char buffer[256];
-        std::strftime(
-                buffer,
-                256,
-                "[%Y-%b-%d %H:%M:%S.%f] ",
-                std::localtime(&now));
-        *logstream << buffer;
+                "[%Y-%b-%d %H:%M:%S] ");
     }
 }
