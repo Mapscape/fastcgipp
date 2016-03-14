@@ -43,6 +43,6 @@ void Fastcgipp::Logging::timestamp()
         std::time_t now = std::time(nullptr);
         *logstream << std::put_time(
                 std::localtime(&now),
-                "[%Y-%b-%d %H:%M:%S] ");
+                L"[%Y-%b-%d %H:%M:%S] ");
     }
 }
