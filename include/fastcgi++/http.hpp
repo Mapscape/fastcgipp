@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 11, 2016
+ * @date       March 14, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -144,7 +144,7 @@ namespace Fastcgipp
          * for netmask calculation. It detects when an IPv4 address is stored
          * outputs it accordingly.
          *
-         * @date    March 11, 2016
+         * @date    March 14, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class Address
@@ -162,19 +162,25 @@ namespace Fastcgipp
              */
             Address operator=(const unsigned char* data)
             {
-                std::copy(m_data.begin(), m_data.end(), data);
+                std::copy(data, data+m_data.size(), m_data.begin());
                 return *this;
             }
 
             Address operator=(const Address& address)
             {
-                std::copy(m_data.begin(), m_data.end(), address.m_data.begin());
+                std::copy(
+                        address.m_data.begin(),
+                        address.m_data.end(),
+                        m_data.begin());
                 return *this;
             }
 
             Address(const Address& address)
             {
-                std::copy(m_data.begin(), m_data.end(), address.m_data.begin());
+                std::copy(
+                        address.m_data.begin(),
+                        address.m_data.end(),
+                        m_data.begin());
             }
 
             //! Construct the IPv6 address from a data array
@@ -183,7 +189,7 @@ namespace Fastcgipp
              */
             explicit Address(const unsigned char* data)
             {
-                std::copy(m_data.begin(), m_data.end(), data);
+                std::copy(data, data+m_data.size(), m_data.begin());
             }
 
             //! Assign the IP address from a string of characters
@@ -253,7 +259,7 @@ namespace Fastcgipp
          *
          * @tparam charT Character type to use for strings
          *
-         * @date    March 11, 2016
+         * @date    March 14, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         template<class charT> struct Environment
@@ -383,6 +389,7 @@ namespace Fastcgipp
             void clearPostBuffer()
             {
                 m_postBuffer.clear();
+                m_postBuffer.reserve(0);
             }
 
             Environment():
@@ -444,7 +451,7 @@ namespace Fastcgipp
          * @param[in] end Pointer to the last byte in the string + 1
          * @return Integer value represented by the string
          */
-        int atoi(const char* start, const char* end);
+        template<class charT> int atoi(const charT* start, const charT* end);
 
         //! Decodes a url-encoded string into a multimap container
         /*!
@@ -478,10 +485,11 @@ namespace Fastcgipp
          * @tparam InputIt Input iterator used for the destination.
          * @tparam OutputIt Output iterator used for the source.
          */
-        char* percentEscapedToRealBytes(
-                const char* start,
-                const char* end,
-                char destination);
+        template<class InputIt, class OutputIt>
+        InputIt percentEscapedToRealBytes(
+                OutputIt start,
+                OutputIt end,
+                InputIt destination);
 
         //! List of characters in order for Base64 encoding.
         extern const std::array<const char, 64> base64Characters;
@@ -525,7 +533,7 @@ namespace Fastcgipp
 
         //! Defines ID values for HTTP sessions.
         /*!
-         * @date    March 11, 2016
+         * @date    March 14, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class SessionId
@@ -542,7 +550,7 @@ namespace Fastcgipp
             mutable std::time_t m_timestamp;
 
             //! Set to true once the random number generator has been seeded
-            static bool m_seeded;
+            static bool s_seeded;
 
             template<class T> friend class Sessions;
         public:
@@ -552,12 +560,12 @@ namespace Fastcgipp
             SessionId(const SessionId& x):
                 m_timestamp(x.m_timestamp)
             {
-                std::copy(m_data.begin(), m_data.end(), x.m_data.begin());
+                std::copy(x.m_data.begin(), x.m_data.end(), m_data.begin());
             }
 
             const SessionId& operator=(const SessionId& x)
             {
-                std::copy(m_data.begin(), m_data.end(), x.m_data.begin());
+                std::copy(x.m_data.begin(), x.m_data.end(), m_data.begin());
                 m_timestamp=x.m_timestamp;
                 return *this;
             }

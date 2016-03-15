@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 11, 2016
+ * @date       March 14, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -27,7 +27,10 @@
 *******************************************************************************/
 
 #include <locale>
+#include <codecvt>
 #include <utility>
+#include <sstream>
+#include <iomanip>
 
 #include "fastcgi++/log.hpp"
 #include "fastcgi++/http.hpp"
@@ -49,7 +52,12 @@ void Fastcgipp::Http::charToString(
     }
 }
 
-int Fastcgipp::Http::atoi(const char* start, const char* end)
+template int Fastcgipp::Http::atoi<char>(const char* start, const char* end);
+template int Fastcgipp::Http::atoi<wchar_t>(
+        const wchar_t* start,
+        const wchar_t* end);
+template<class charT>
+int Fastcgipp::Http::atoi(const charT* start, const charT* end)
 {
     bool neg=false;
     if(*start=='-')
@@ -67,16 +75,18 @@ int Fastcgipp::Http::atoi(const char* start, const char* end)
 template std::vector<char>::iterator Fastcgipp::Http::percentEscapedToRealBytes<
     std::vector<char>::iterator,
     std::vector<char>::const_iterator>(
-        const char* data,
-        size_t size);
+        std::vector<char>::const_iterator start,
+        std::vector<char>::const_iterator end,
+        std::vector<char>::iterator destination);
 template char* Fastcgipp::Http::percentEscapedToRealBytes<char*, const char*>(
-        const char* data,
-        size_t size);
+        const char* start,
+        const char* end,
+        char* destination);
 template<class InputIt, class OutputIt>
 InputIt Fastcgipp::Http::percentEscapedToRealBytes(
         OutputIt start,
         OutputIt end,
-        InputIt destination);
+        InputIt destination)
 {
     enum State
     {
@@ -97,7 +107,7 @@ InputIt Fastcgipp::Http::percentEscapedToRealBytes(
             else if(*start=='+')
                 *destination++=' ';
             else
-                *destination++=*source++;
+                *destination++=*start++;
         }
         else if(state == DECODINGFIRST)
         {
@@ -106,7 +116,7 @@ InputIt Fastcgipp::Http::percentEscapedToRealBytes(
             else if(*start >= '0' && *start <= '9')
                 *destination = (*start&0x0f)<<4;
 
-            state = DECODINGSECOND
+            state = DECODINGSECOND;
         }
         else if(state == DECODINGSECOND)
         {
@@ -116,7 +126,7 @@ InputIt Fastcgipp::Http::percentEscapedToRealBytes(
                 *destination |= *start&0x0f;
 
             ++destination;
-            state = NORMAL
+            state = NORMAL;
         }
         ++start;
     }
@@ -165,8 +175,8 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
                         {
                             percentEscapedToRealBytes(
                                     source-size,
-                                    buffer.get(),
-                                    size);
+                                    source,
+                                    buffer.get());
                             pathInfo.push_back(std::basic_string<charT>());
                             charToString(
                                     buffer.get(),
@@ -182,7 +192,7 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             if(!memcmp(name, "HTTP_ACCEPT", 11))
                 charToString(value, value+valueSize, acceptContentTypes);
             else if(!memcmp(name, "HTTP_COOKIE", 11))
-                decodeUrlEncoded(value, valueSize, cookies, ';');
+                decodeUrlEncoded(value, value+valueSize, cookies, ';');
             else if(!memcmp(name, "SERVER_ADDR", 11))
                 serverAddress.assign(value, value+valueSize);
             else if(!memcmp(name, "REMOTE_ADDR", 11))
@@ -204,21 +214,23 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
                 const char* end=(char*)memchr(value, ';', valueSize);
                 charToString(
                         value,
-                        value+(end?end-value:valueSize),
+                        end?end:value+valueSize,
                         contentType);
                 if(end)
                 {
-                    const char* start=(char*)memchr(end, '=', valueSize-(end-data));
+                    const char* start=(char*)memchr(end, '=', valueSize-(end-value));
                     if(start)
                     {
-                        boundarySize=valueSize-(++start-value);
-                        boundary.reset(new char[boundarySize]);
-                        memcpy(boundary.get(), start, boundarySize);
+                        boundary.resize(valueSize-(++start-value));
+                        std::copy(
+                                start,
+                                start+boundary.size(),
+                                boundary.begin());
                     }
                 }
             }
             else if(!memcmp(name, "QUERY_STRING", 12) && valueSize)
-                decodeUrlEncoded(value, valueSize, gets);
+                decodeUrlEncoded(value, value+valueSize, gets);
             break;
         case 13:
             if(!memcmp(name, "DOCUMENT_ROOT", 13))
@@ -227,50 +239,50 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
         case 14:
             if(!memcmp(name, "REQUEST_METHOD", 14))
             {
-                requestMethod = HTTP_METHOD_ERROR;
+                requestMethod = RequestMethod::ERROR;
                 switch(valueSize)
                 {
                 case 3:
                     if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_GET],
-                                3)) requestMethod = HTTP_METHOD_GET;
+                                requestMethodLabels[(int)RequestMethod::GET],
+                                3)) requestMethod = RequestMethod::GET;
                     else if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_PUT],
-                                3)) requestMethod = HTTP_METHOD_PUT;
+                                requestMethodLabels[(int)RequestMethod::PUT],
+                                3)) requestMethod = RequestMethod::PUT;
                     break;
                 case 4:
                     if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_HEAD],
-                                4)) requestMethod = HTTP_METHOD_HEAD;
+                                requestMethodLabels[(int)RequestMethod::HEAD],
+                                4)) requestMethod = RequestMethod::HEAD;
                     else if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_POST],
-                                4)) requestMethod = HTTP_METHOD_POST;
+                                requestMethodLabels[(int)RequestMethod::POST],
+                                4)) requestMethod = RequestMethod::POST;
                     break;
                 case 5:
                     if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_TRACE],
-                                5)) requestMethod = HTTP_METHOD_TRACE;
+                                requestMethodLabels[(int)RequestMethod::TRACE],
+                                5)) requestMethod = RequestMethod::TRACE;
                     break;
                 case 6:
                     if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_DELETE],
-                                6)) requestMethod = HTTP_METHOD_DELETE;
+                                requestMethodLabels[(int)RequestMethod::DELETE],
+                                6)) requestMethod = RequestMethod::DELETE;
                     break;
                 case 7:
                     if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_OPTIONS],
-                                7)) requestMethod = HTTP_METHOD_OPTIONS;
+                                requestMethodLabels[(int)RequestMethod::OPTIONS],
+                                7)) requestMethod = RequestMethod::OPTIONS;
                     else if(!memcmp(
                                 value,
-                                requestMethodLabels[HTTP_METHOD_OPTIONS],
-                                7)) requestMethod = HTTP_METHOD_CONNECT;
+                                requestMethodLabels[(int)RequestMethod::OPTIONS],
+                                7)) requestMethod = RequestMethod::CONNECT;
                     break;
                 }
             }
@@ -298,10 +310,13 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
         case 22:
             if(!memcmp(name, "HTTP_IF_MODIFIED_SINCE", 22))
             {
-                stringstream dateStream;
+                std::stringstream dateStream;
+                std::tm time;
                 dateStream.write(value, valueSize);
-                dateStream.imbue(locale(locale::classic(), new posix_time::time_input_facet("%a, %d %b %Y %H:%M:%S GMT")));
-                dateStream >> ifModifiedSince;
+                dateStream >> std::get_time(
+                        &time,
+                        "%a, %d %b %Y %H:%M:%S GMT");
+                ifModifiedSince = std::mktime(&time);
             }
             break;
         }
@@ -323,17 +338,17 @@ void Fastcgipp::Http::Environment<charT>::fillPostBuffer(
     const size_t oldSize = m_postBuffer.size();
     m_postBuffer.resize(oldSize+size);
     std::copy(
-            m_postBuffer.begin()+oldSize,
-            m_postBuffer.end(),
-            data);
+            data,
+            data+oldSize,
+            m_postBuffer.begin()+oldSize);
 }
 
 template bool Fastcgipp::Http::Environment<char>::parsePostBuffer();
 template bool Fastcgipp::Http::Environment<wchar_t>::parsePostBuffer();
 template<class charT> bool Fastcgipp::Http::Environment<charT>::parsePostBuffer()
 {
-    static const char multipart[] = R"raw(multipart/form-data)raw";
-    static const char urlEncoded[] = R"raw(application/x-www-form-urlencoded)raw";
+    static const char multipart[] = "multipart/form-data";
+    static const char urlEncoded[] = "application/x-www-form-urlencoded";
 
     if(!m_postBuffer.size())
         return true;
@@ -341,28 +356,27 @@ template<class charT> bool Fastcgipp::Http::Environment<charT>::parsePostBuffer(
     bool parsed = false;
 
     if(std::equal(
-                contentType.begin(),
-                contentType.end(),
                 multipart,
-                multipart+sizeof(multipart)))
+                multipart+sizeof(multipart)-1,
+                contentType.begin(),
+                contentType.end()))
     {
         parsePostsMultipart();
         parsed = true;
     }
     else if(std::equal(
-                contentType.begin(),
-                contentType.end(),
                 urlEncoded,
-                urlEncoded+sizeof(urlEncoded)))
+                urlEncoded+sizeof(urlEncoded)-1,
+                contentType.begin(),
+                contentType.end()))
     {
         parsePostsUrlEncoded();
         parsed = true;
     }
 
-    if(parse)
+    if(parsed)
     {
-        m_postBuffer.clear();
-        m_postBuffer.reserve(0);
+        clearPostBuffer();
         return true;
     }
 
@@ -377,7 +391,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
     static const std::string cName("name=\"");
     static const std::string cFilename("filename=\"");
     static const std::string cContentType("Content-Type: ");
-    static const std::string cBodyStart("\r\n\r\n");
+    static const std::string cBody("\r\n\r\n");
 
     auto nameStart(m_postBuffer.cend());
     auto nameEnd(m_postBuffer.cend());
@@ -405,7 +419,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
             {
                 if(
                         nameEnd == m_postBuffer.cend() &&
-                        m_postBuffer.cend()-byte < cName.size() &&
+                        size_t(m_postBuffer.cend()-byte) < cName.size() &&
                         std::equal(cName.begin(), cName.end(), byte))
                 {
                     byte += cName.size()-1;
@@ -414,7 +428,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                 }
                 else if(
                         filenameEnd == m_postBuffer.cend() &&
-                        m_postBuffer.cend()-byte < cFilename.size() &&
+                        size_t(m_postBuffer.cend()-byte) < cFilename.size() &&
                         std::equal(cFilename.begin(), cFilename.end(), byte))
                 {
                     byte += cFilename.size()-1;
@@ -423,16 +437,16 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                 }
                 else if(
                         contentTypeEnd == m_postBuffer.cend() &&
-                        m_postBuffer.cend()-byte < cContentType.size() &&
+                        size_t(m_postBuffer.cend()-byte) < cContentType.size() &&
                         std::equal(cContentType.begin(), cContentType.end(), byte))
                 {
                     byte += cContentType.size()-1;
                     contentTypeStart = byte+1;
-                    state = CONTENTTYPE;
+                    state = CONTENT_TYPE;
                 }
                 else if(
                         bodyEnd == m_postBuffer.cend() &&
-                        m_postBuffer.cend()-byte < cBody.size() &&
+                        size_t(m_postBuffer.cend()-byte) < cBody.size() &&
                         std::equal(cBody.begin(), cBody.end(), byte))
                 {
                     byte += cBody.size()-1;
@@ -476,7 +490,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
             case BODY:
             {
                 if(
-                        m_postBuffer.cend()-byte < boundary.size() &&
+                        size_t(m_postBuffer.cend()-byte) < boundary.size() &&
                         std::equal(boundary.begin(), boundary.end(), byte))
                 {
                     bodyEnd = byte-2;
@@ -487,31 +501,34 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                             && *(bodyEnd-1)=='\n'
                             && *(bodyEnd-2)=='\r')
                         bodyEnd -= 2;
-                    const size_t bodySize = bodyEnd-bodySize;
+                    const size_t bodySize = size_t(bodyEnd-bodyStart);
 
                     if(nameEnd != m_postBuffer.cend())
                     {
-                        basic_string<charT> name;
-                        charToString(nameStart, nameEnd, name);
+                        std::basic_string<charT> name;
+                        charToString(&*nameStart, &*nameEnd, name);
 
                         if(contentTypeEnd != m_postBuffer.cend())
                         {
-                            File file;
+                            File<charT> file;
                             charToString(
-                                    contentTypeStart,
-                                    contentTypeEnd,
+                                    &*contentTypeStart,
+                                    &*contentTypeEnd,
                                     file.contentType);
                             if(filenameEnd != m_postBuffer.cend())
                                 charToString(
-                                        filenameStart,
-                                        filenameEnd,
+                                        &*filenameStart,
+                                        &*filenameEnd,
                                         file.filename);
 
                             file.m_size=bodySize;
                             if(bodySize)
                             {
                                 file.m_data.reset(new char[bodySize]);
-                                std::copy(file.m_data, bodySize, bodyStart);
+                                std::copy(
+                                        bodyStart,
+                                        bodyEnd,
+                                        file.m_data.get());
                             }
                             files.insert(std::make_pair(
                                         std::move(name),
@@ -519,8 +536,8 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                         }
                         else
                         {
-                            basic_string<charT> value;
-                            charToString(valueStart, valueEnd, value);
+                            std::basic_string<charT> value;
+                            charToString(&*bodyStart, &*bodyEnd, value);
                             posts.insert(std::make_pair(
                                         std::move(name),
                                         std::move(value)));
@@ -552,17 +569,17 @@ void Fastcgipp::Http::Environment<charT>::parsePostsUrlEncoded()
     decodeUrlEncoded(&m_postBuffer.front(), &m_postBuffer.back()+1, posts);
 }
 
-bool Fastcgipp::Http::SessionId::seeded=false;
+bool Fastcgipp::Http::SessionId::s_seeded=false;
 
 Fastcgipp::Http::SessionId::SessionId()
 {
-    if(!m_seeded)
+    if(!s_seeded)
     {
         std::srand(std::time(nullptr));
-        m_seeded=true;
+        s_seeded=true;
     }
 
-    for(unsigned char& byte: data)
+    for(unsigned char& byte: m_data)
         byte=(unsigned char)(std::rand()%256);
     m_timestamp = std::time(nullptr);
 }
@@ -625,13 +642,13 @@ template<class charT> void Fastcgipp::Http::decodeUrlEncoded(
                         std::vector<char>::const_iterator(valueEnd),
                         valueStart);
 
-                basic_string<charT> name;
-                charToString(nameStart, nameEnd, name);
+                std::basic_string<charT> name;
+                charToString(&*nameStart, &*nameEnd, name);
                 nameStart=byte+1;
                 nameEnd=data.end();
 
-                basic_string<charT> value;
-                charToString(valueStart, valueEnd, value);
+                std::basic_string<charT> value;
+                charToString(&*valueStart, &*valueEnd, value);
                 valueStart=data.end();
                 valueEnd=data.end();
 
@@ -654,8 +671,13 @@ template<class charT> void Fastcgipp::Http::decodeUrlEncoded(
     }
 }
 
-extern const std::array<const char, 64> Fastcgipp::Http::base64Characters
-= "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+extern const std::array<const char, 64> Fastcgipp::Http::base64Characters =
+{{
+    'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S',
+    'T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l',
+    'm','n','o','p','q','r','s','t','u','v','w','x','y','z','0','1','2','3','4',
+    '5','6','7','8','9','"','/'
+}};
 
 const std::array<const char* const, 9> Fastcgipp::Http::requestMethodLabels =
 {
@@ -673,8 +695,8 @@ const std::array<const char* const, 9> Fastcgipp::Http::requestMethodLabels =
 Fastcgipp::Http::Address& Fastcgipp::Http::Address::operator&=(
         const Address& x)
 {
-    *(uint64_t*)m_data &= *(const uint64_t*)x.m_data;
-    *(uint64_t*)(m_data+8) &= *(const uint64_t*)(x.m_data+8);
+    *(uint64_t*)m_data.data() &= *(const uint64_t*)x.m_data.data();
+    *(uint64_t*)(m_data.data()+8) &= *(const uint64_t*)(x.m_data.data()+8);
 
     return *this;
 }
@@ -691,7 +713,7 @@ Fastcgipp::Http::Address Fastcgipp::Http::Address::operator&(
 template void Fastcgipp::Http::Address::assign<char>(
         const char* start,
         const char* end);
-template void Fastcgipp::Http::Address::assign<char>(
+template void Fastcgipp::Http::Address::assign<wchar_t>(
         const wchar_t* start,
         const wchar_t* end);
 template<class charT> void Fastcgipp::Http::Address::assign(
@@ -801,7 +823,7 @@ template<class charT> void Fastcgipp::Http::Address::assign(
         else
         {
             auto padEnd=pad+(m_data.end()-write);
-            std::copy(padEnd, m_data.end(), pad);
+            std::copy(pad, padEnd, padEnd);
             std::fill(pad, padEnd, 0);
         }
     }
@@ -840,8 +862,8 @@ Fastcgipp::Http::operator<<(
                 const uint16_t* subEndCandidate;
                 bool inZero = false;
 
-                for(const uint16_t* it = (const uint16_t*)address.m_date.data();
-                        it < (const uint16_t*)(address.m_date.data()+Address::size);
+                for(const uint16_t* it = (const uint16_t*)address.m_data.data();
+                        it < (const uint16_t*)(address.m_data.data()+Address::size);
                         ++it)
                 {
                     if(*it == 0)
@@ -879,9 +901,9 @@ Fastcgipp::Http::operator<<(
             os.setf(ios::hex, ios::basefield);
 
             if(
-                    subStart==(const uint16_t*)address.m_date.data()
-                    && subEnd==(const uint16_t*)address.m_date.data()+4
-                    && *((const uint16_t*)address.m_date.data()+5) == 0xffff)
+                    subStart==(const uint16_t*)address.m_data.data()
+                    && subEnd==(const uint16_t*)address.m_data.data()+4
+                    && *((const uint16_t*)address.m_data.data()+5) == 0xffff)
             {
                 // It is an ipv4 address
                 *bufPtr++=os.widen(':');
@@ -895,8 +917,8 @@ Fastcgipp::Http::operator<<(
                 os.setf(ios::dec, ios::basefield);
 
                 for(
-                        const unsigned char* it = address.m_date.data()+12;
-                        it < address.m_date.data()+Address::size;
+                        const unsigned char* it = address.m_data.data()+12;
+                        it < address.m_data.data()+Address::size;
                         ++it)
                 {
                     bufPtr=use_facet<num_put<charT, charT*> >(loc).put(
@@ -911,16 +933,16 @@ Fastcgipp::Http::operator<<(
             else
             {
                 // It is an ipv6 address
-                for(const uint16_t* it = (const uint16_t*)address.m_date.data();
+                for(const uint16_t* it = (const uint16_t*)address.m_data.data();
                         it < (const uint16_t*)(
-                            address.m_date.data()+Address::size);
+                            address.m_data.data()+Address::size);
                         ++it)
                 {
                     if(subStart <= it && it <= subEnd)
                     {
                         if(
                                 it == subStart 
-                                && it == (const uint16_t*)address.m_date.data())
+                                && it == (const uint16_t*)address.m_data.data())
                             *bufPtr++=os.widen(':');
                         if(it == subEnd)
                             *bufPtr++=os.widen(':');
@@ -932,9 +954,9 @@ Fastcgipp::Http::operator<<(
                                 os,
                                 os.fill(),
                                 static_cast<unsigned long int>(
-                                    *(Protocol::BigEndian<const uint16_t>*)it));
+                                    *(const Protocol::BigEndian<uint16_t>*)it));
 
-                        if(it < (const uint16_t*)(address.m_date.data()+Address::size)-1)
+                        if(it < (const uint16_t*)(address.m_data.data()+Address::size)-1)
                             *bufPtr++=os.widen(':');
                     }
                 }
