@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 14, 2016
+ * @date       March 16, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -749,7 +749,11 @@ template<class charT> void Fastcgipp::Http::Address::assign(
                 chunk = 0;
                 write += 2;
                 if(write>=m_data.end() || read>=end)
+                {
+                    if(read>=end && write<m_data.end() && pad==m_data.end())
+                        error=true;
                     break;
+                }
             }
             continue;
         }
@@ -809,6 +813,8 @@ template<class charT> void Fastcgipp::Http::Address::assign(
         chunk <<= 4;
         chunk |= *read-offset;
     }
+
+
 
     if(error)
     {

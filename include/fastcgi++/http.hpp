@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 14, 2016
+ * @date       March 16, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -144,7 +144,7 @@ namespace Fastcgipp
          * for netmask calculation. It detects when an IPv4 address is stored
          * outputs it accordingly.
          *
-         * @date    March 14, 2016
+         * @date    March 16, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class Address
@@ -181,6 +181,12 @@ namespace Fastcgipp
                         address.m_data.begin(),
                         address.m_data.end(),
                         m_data.begin());
+            }
+
+            //! Initializes an all zero address
+            Address()
+            {
+                zero();
             }
 
             //! Construct the IPv6 address from a data array
