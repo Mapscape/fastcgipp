@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 16, 2016
+ * @date       March 17, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -265,7 +265,7 @@ namespace Fastcgipp
          *
          * @tparam charT Character type to use for strings
          *
-         * @date    March 14, 2016
+         * @date    March 17, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         template<class charT> struct Environment
@@ -303,11 +303,8 @@ namespace Fastcgipp
             //! REQUEST_URI
             std::basic_string<charT> requestUri;
 
-            //! Path information type
-            typedef std::vector<std::basic_string<charT>> PathInfo;
-
             //! Path information
-            PathInfo pathInfo;
+            std::vector<std::basic_string<charT>> pathInfo;
 
             //! The etag the client assumes this document should have
             int etag;
