@@ -513,9 +513,12 @@ namespace Fastcgipp
          * @tparam In Input iterator type. Should be dereferenced to type char.
          * @tparam Out Output iterator type. Should be dereferenced to type
          *             char.
+         *
+         * @return Iterator to last position written+1 (The normal end()
+         *                  iterator).
          */
         template<class In, class Out>
-        void base64Encode(In start, In end, Out destination);
+        Out base64Encode(In start, In end, Out destination);
 
         //! Convert a Base64 encoded container to a binary container.
         /*!
@@ -763,7 +766,7 @@ Out Fastcgipp::Http::base64Decode(In start, In end, Out destination)
 }
 
 template<class In, class Out>
-void Fastcgipp::Http::base64Encode(In start, In end, Out destination)
+Out Fastcgipp::Http::base64Encode(In start, In end, Out destination)
 {
     for(int buffer, bitPos=-6, padded; start!=end || bitPos>-6; ++destination)
     {
@@ -775,7 +778,7 @@ void Fastcgipp::Http::base64Encode(In start, In end, Out destination)
             while(bitPos!=-8)
             {
                 if(start!=end)
-                    buffer |= (uint32_t)*(unsigned char*)start++ << bitPos;
+                    buffer |= (int)*(unsigned char*)start++ << bitPos;
                 else padded+=6;
                 bitPos-=8;
             }
@@ -790,6 +793,8 @@ void Fastcgipp::Http::base64Encode(In start, In end, Out destination)
         else *destination=base64Characters[ (buffer >> bitPos)&0x3f ];
         bitPos -= 6;
     }
+
+    return destination;
 }
 
 template<class T>

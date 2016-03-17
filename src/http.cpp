@@ -107,7 +107,7 @@ InputIt Fastcgipp::Http::percentEscapedToRealBytes(
             else if(*start=='+')
                 *destination++=' ';
             else
-                *destination++=*start++;
+                *destination++=*start;
         }
         else if(state == DECODINGFIRST)
         {
@@ -591,8 +591,10 @@ Fastcgipp::Http::SessionId::operator=<const wchar_t>(const wchar_t* data);
 template<class charT> const Fastcgipp::Http::SessionId&
 Fastcgipp::Http::SessionId::operator=(charT* data)
 {
-    m_data.fill(0);
-    base64Decode(data, data+size*4/3, m_data.begin());
+    auto writeEnd = base64Decode(
+            data,
+            data+(size*4-1)/3+1,
+            m_data.begin());
     m_timestamp = std::time(nullptr);
     return *this;
 }
@@ -621,7 +623,7 @@ template<class charT> void Fastcgipp::Http::decodeUrlEncoded(
 {
     std::vector<char> data(start, end);
 
-    auto nameStart(data.end());
+    auto nameStart(data.begin());
     auto nameEnd(data.end());
     auto valueStart(data.end());
     auto valueEnd(data.end());
@@ -659,7 +661,7 @@ template<class charT> void Fastcgipp::Http::decodeUrlEncoded(
         }
         else
         {
-            if(*byte == '=')
+            if(*byte == '=' && nameStart != data.end())
             {
                 nameEnd=percentEscapedToRealBytes(
                         std::vector<char>::const_iterator(nameStart),
@@ -676,7 +678,7 @@ extern const std::array<const char, 64> Fastcgipp::Http::base64Characters =
     'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S',
     'T','U','V','W','X','Y','Z','a','b','c','d','e','f','g','h','i','j','k','l',
     'm','n','o','p','q','r','s','t','u','v','w','x','y','z','0','1','2','3','4',
-    '5','6','7','8','9','"','/'
+    '5','6','7','8','9','+','/'
 }};
 
 const std::array<const char* const, 9> Fastcgipp::Http::requestMethodLabels =
