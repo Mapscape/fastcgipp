@@ -429,7 +429,7 @@ int main()
             ERROR_LOG("Error decoding")
     }
 
-    INFO_LOG("*** Testing fastcgipp::Http::decodeUrlEncoded() ***")
+    INFO_LOG("*** Testing Fastcgipp::Http::decodeUrlEncoded() ***")
     {
         const char input[] =
             "%268c2LuPm=ccPd%5E92c%24Qd_1ab41hq%5EHDjHp!t!NJBa"
@@ -467,5 +467,129 @@ int main()
 
         if(output != properOutput)
             ERROR_LOG("Error decoded a string")
+    }
+
+    INFO_LOG("*** Testing Http::Environment ***")
+    {
+        Fastcgipp::Http::Address loopback;
+        loopback.m_data.back() = 1;
+
+        std::vector<std::wstring> properPath;
+        {
+            properPath.push_back(L"this");
+            properPath.push_back(L"is");
+            properPath.push_back(L"a");
+            properPath.push_back(L"test\\ path");
+        }
+
+        std::multimap<std::wstring, std::wstring> properGets;
+        {
+            const wchar_t utf8GetVarTest[] = 
+            {
+                0x043F, 0x0440, 0x043E, 0x0432, 0x0435, 0x0440, 0x043A, 0x0430, 0
+            };
+            properGets.insert(std::pair<std::wstring, std::wstring>(
+                        L"enctype",
+                        L"multipart"));
+            properGets.insert(std::pair<std::wstring, std::wstring>(
+                        L"getVar",
+                        L"testing"));
+            properGets.insert(std::pair<std::wstring, std::wstring>(
+                        L"secondGetVar",
+                        L"tested"));
+            properGets.insert(std::pair<std::wstring, std::wstring>(
+                        L"utf8GetVarTest",
+                        utf8GetVarTest));
+        }
+
+        std::multimap<std::wstring, std::wstring> properPosts;
+        {
+            const wchar_t utf8Name[] = 
+            {
+                0x002B, 0x003D, 0x0020, 0x0061, 0x0071, 0x0075, 0x00ED, 0x0020,
+                0x0065, 0x0073, 0x0074, 0x00E1, 0x0020, 0x0065, 0x006C, 0x0020,
+                0x0063, 0x0061, 0x006D, 0x0070, 0x006F, 0x0
+            };
+            const wchar_t utf8Value[] =
+            {
+                0x00C9, 0x006C, 0x0020, 0x0065, 0x0073, 0x0074, 0x00E1, 0x0020,
+                0x0063, 0x006F, 0x006E, 0x0020, 0x0075, 0x006E, 0x0020, 0x006E,
+                0x0069, 0x00F1, 0x006F, 0x0
+            };
+            properPosts.insert(std::pair<std::wstring, std::wstring>(
+                        L"submit",
+                        L"submit"));
+            properPosts.insert(std::pair<std::wstring, std::wstring>(
+                        utf8Name,
+                        utf8Value));
+        }
+
+        INFO_LOG("Doing test with multipart POST")
+        {
+            Fastcgipp::Http::Environment<wchar_t> environment;
+            {
+                {
+#include "multipartParam.h"
+                    environment.fill(
+                            (const char*)multipartParam,
+                            (const char*)multipartParam+sizeof(multipartParam));
+                }
+
+                INFO_LOG("Checking parameters")
+                if(
+                        environment.host != L"localhost" ||
+                        environment.userAgent != L"Mozilla/5.0 (X11; Linux"
+                            " x86_64; rv:45.0) Gecko/20100101 Firefox/45.0" ||
+                        environment.acceptContentTypes != L"text/html,"
+                            "application/xhtml+xml,application/xml;q=0.9,*/*;"
+                            "q=0.8" ||
+                        environment.acceptLanguages != L"en-CA,en-US;q=0.7,en;"
+                            "q=0.3" ||
+                        environment.acceptCharsets != L"" ||
+                        environment.referer != L"http://localhost/examples/"
+                            "echo-form.html" ||
+                        environment.contentType != L"multipart/form-data" ||
+                        environment.root != L"/var/www/localhost/htdocs" ||
+                        environment.scriptName != L"/examples/echo.fcgi" ||
+                        environment.requestMethod != 
+                            Fastcgipp::Http::RequestMethod::POST ||
+                        environment.requestUri != L"/examples/echo.fcgi/this/is"
+                            "/a/test%5C+path?getVar=testing&secondGetVar=tested"
+                            "&utf8GetVarTest=%D0%BF%D1%80%D0%BE%D0%B2%D0%B5%D1%"
+                            "80%D0%BA%D0%B0&enctype=multipart" ||
+                        environment.etag != 0 ||
+                        environment.keepAlive != 0 ||
+                        environment.serverAddress != loopback ||
+                        environment.remoteAddress != loopback ||
+                        environment.serverPort != 80 ||
+                        environment.remotePort != 49003)
+                        ERROR_LOG("Didn't get the right parameters" << environment.serverPort)
+
+                INFO_LOG("Checking pathInfo")
+                if(properPath != environment.pathInfo)
+                    ERROR_LOG("fail")
+
+                INFO_LOG("Checking gets")
+                if(properGets != environment.gets)
+                    ERROR_LOG("fail")
+
+                INFO_LOG("Checking posts")
+                {
+#include "multipartPost.h"
+                    environment.fillPostBuffer(
+                            (const char*)multipartPost,
+                            sizeof(multipartPost));
+                    /*environment.fillPostBuffer(
+                            (const char*)multipartPost+sizeof(multipartPost)/2,
+                            sizeof(multipartPost)/2);*/
+                    environment.parsePostBuffer();
+                }
+                if(properPosts != environment.posts)
+                    ERROR_LOG("fail")
+
+                for(auto pair: environment.posts)
+                    INFO_LOG(pair.first << " = " << pair.second)
+            }
+        }
     }
 }

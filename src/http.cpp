@@ -327,6 +327,9 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
 template void Fastcgipp::Http::Environment<char>::fillPostBuffer(
         const char* data,
         size_t size);
+template void Fastcgipp::Http::Environment<wchar_t>::fillPostBuffer(
+        const char* data,
+        size_t size);
 template<class charT>
 void Fastcgipp::Http::Environment<charT>::fillPostBuffer(
         const char* data,
@@ -591,7 +594,7 @@ Fastcgipp::Http::SessionId::operator=<const wchar_t>(const wchar_t* data);
 template<class charT> const Fastcgipp::Http::SessionId&
 Fastcgipp::Http::SessionId::operator=(charT* data)
 {
-    auto writeEnd = base64Decode(
+    base64Decode(
             data,
             data+(size*4-1)/3+1,
             m_data.begin());
@@ -816,8 +819,6 @@ template<class charT> void Fastcgipp::Http::Address::assign(
         chunk |= *read-offset;
     }
 
-
-
     if(error)
     {
         m_data.fill(0);
@@ -831,7 +832,7 @@ template<class charT> void Fastcgipp::Http::Address::assign(
         else
         {
             auto padEnd=pad+(m_data.end()-write);
-            std::copy(pad, padEnd, padEnd);
+            std::copy(pad, write, padEnd);
             std::fill(pad, padEnd, 0);
         }
     }

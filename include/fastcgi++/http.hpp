@@ -401,7 +401,8 @@ namespace Fastcgipp
                 keepAlive(0),
                 contentLength(0),
                 serverPort(0),
-                remotePort(0)
+                remotePort(0),
+                ifModifiedSince(0)
             {}
         private:
             //! Parses "multipart/form-data" http post data
