@@ -547,7 +547,7 @@ namespace Fastcgipp
         {
         public:
             //! Size in bytes of the ID data
-            static const unsigned int size=24;
+            static const unsigned int size=16;
 
             //! Size in characters of string representation
             static const unsigned int stringLength=(size*4-1)/3+1;
@@ -584,7 +584,7 @@ namespace Fastcgipp
             /*!
              * Note that only stringLength bytes will be read from the string.
              *
-             * @param data Iterator set at begin of base64 encoded string
+             * @param data Pointer to beginning of base64 encoded string
              */
             template<class charT> const SessionId& operator=(charT* data);
 
@@ -592,7 +592,7 @@ namespace Fastcgipp
             /*!
              * Note that only stringLength bytes will be read from the string.
              *
-             * @param data Iterator set at begin of base64 encoded string
+             * @param data Pointer to beginning of base64 encoded string
              */
             template<class charT> SessionId(charT* data)
             {
@@ -623,7 +623,7 @@ namespace Fastcgipp
             //! Resets the last access timestamp to the current time.
             void refresh() const
             {
-                m_timestamp = std::time(nullptr);
+                m_timestamp = std::time_t(nullptr);
             }
         };
 
