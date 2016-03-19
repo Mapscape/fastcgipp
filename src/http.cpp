@@ -342,7 +342,7 @@ void Fastcgipp::Http::Environment<charT>::fillPostBuffer(
     m_postBuffer.resize(oldSize+size);
     std::copy(
             data,
-            data+oldSize,
+            data+size,
             m_postBuffer.begin()+oldSize);
 }
 
@@ -422,7 +422,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
             {
                 if(
                         nameEnd == m_postBuffer.cend() &&
-                        size_t(m_postBuffer.cend()-byte) < cName.size() &&
+                        size_t(m_postBuffer.cend()-byte) > cName.size() &&
                         std::equal(cName.begin(), cName.end(), byte))
                 {
                     byte += cName.size()-1;
@@ -431,7 +431,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                 }
                 else if(
                         filenameEnd == m_postBuffer.cend() &&
-                        size_t(m_postBuffer.cend()-byte) < cFilename.size() &&
+                        size_t(m_postBuffer.cend()-byte) > cFilename.size() &&
                         std::equal(cFilename.begin(), cFilename.end(), byte))
                 {
                     byte += cFilename.size()-1;
@@ -440,7 +440,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                 }
                 else if(
                         contentTypeEnd == m_postBuffer.cend() &&
-                        size_t(m_postBuffer.cend()-byte) < cContentType.size() &&
+                        size_t(m_postBuffer.cend()-byte) > cContentType.size() &&
                         std::equal(cContentType.begin(), cContentType.end(), byte))
                 {
                     byte += cContentType.size()-1;
@@ -449,7 +449,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                 }
                 else if(
                         bodyEnd == m_postBuffer.cend() &&
-                        size_t(m_postBuffer.cend()-byte) < cBody.size() &&
+                        size_t(m_postBuffer.cend()-byte) > cBody.size() &&
                         std::equal(cBody.begin(), cBody.end(), byte))
                 {
                     byte += cBody.size()-1;
@@ -493,7 +493,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
             case BODY:
             {
                 if(
-                        size_t(m_postBuffer.cend()-byte) < boundary.size() &&
+                        size_t(m_postBuffer.cend()-byte) > boundary.size() &&
                         std::equal(boundary.begin(), boundary.end(), byte))
                 {
                     bodyEnd = byte-2;
