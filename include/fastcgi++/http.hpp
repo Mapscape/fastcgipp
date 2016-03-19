@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 17, 2016
+ * @date       March 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -540,14 +540,17 @@ namespace Fastcgipp
 
         //! Defines ID values for HTTP sessions.
         /*!
-         * @date    March 14, 2016
+         * @date    March 18, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class SessionId
         {
         public:
             //! Size in bytes of the ID data
-            static const int size=24;
+            static const unsigned int size=24;
+
+            //! Size in characters of string representation
+            static const unsigned int stringLength=(size*4-1)/3+1;
 
         private:
             //! ID data
@@ -579,17 +582,17 @@ namespace Fastcgipp
 
             //! Assign the ID data with a base64 encoded string
             /*!
-             * Note that only size*4/3 bytes will be read from the string.
+             * Note that only stringLength bytes will be read from the string.
              *
-             * @param data_ Iterator set at begin of base64 encoded string
+             * @param data Iterator set at begin of base64 encoded string
              */
             template<class charT> const SessionId& operator=(charT* data);
 
             //! Initialize the ID data with a base64 encoded string
             /*!
-             * Note that only size*4/3 bytes will be read from the string.
+             * Note that only stringLength bytes will be read from the string.
              *
-             * @param data_ Iterator set at begin of base64 encoded string
+             * @param data Iterator set at begin of base64 encoded string
              */
             template<class charT> SessionId(charT* data)
             {

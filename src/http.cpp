@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 16, 2016
+ * @date       March 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -596,7 +596,7 @@ Fastcgipp::Http::SessionId::operator=(charT* data)
 {
     base64Decode(
             data,
-            data+(size*4-1)/3+1,
+            data+stringLength,
             m_data.begin());
     m_timestamp = std::time(nullptr);
     return *this;
