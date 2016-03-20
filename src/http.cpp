@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 18, 2016
+ * @date       March 20, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -31,6 +31,7 @@
 #include <utility>
 #include <sstream>
 #include <iomanip>
+#include <random>
 
 #include "fastcgi++/log.hpp"
 #include "fastcgi++/http.hpp"
@@ -572,19 +573,14 @@ void Fastcgipp::Http::Environment<charT>::parsePostsUrlEncoded()
     decodeUrlEncoded(&m_postBuffer.front(), &m_postBuffer.back()+1, posts);
 }
 
-bool Fastcgipp::Http::SessionId::s_seeded=false;
-
 Fastcgipp::Http::SessionId::SessionId()
 {
-    if(!s_seeded)
-    {
-        std::srand(std::time(nullptr));
-        s_seeded=true;
-    }
+    std::random_device device;
+    std::uniform_int_distribution<unsigned short> distribution(0, 255);
 
     for(unsigned char& byte: m_data)
-        byte=(unsigned char)(std::rand()%256);
-    m_timestamp = std::time(nullptr);
+        byte = (unsigned char)distribution(device);
+    m_timestamp = std::time_t(nullptr);
 }
 
 template const Fastcgipp::Http::SessionId&

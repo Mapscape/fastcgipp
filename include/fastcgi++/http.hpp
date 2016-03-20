@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 18, 2016
+ * @date       March 20, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -540,7 +540,7 @@ namespace Fastcgipp
 
         //! Defines ID values for HTTP sessions.
         /*!
-         * @date    March 18, 2016
+         * @date    March 20, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class SessionId
@@ -558,9 +558,6 @@ namespace Fastcgipp
 
             //! Contains the time this session was last used
             mutable std::time_t m_timestamp;
-
-            //! Set to true once the random number generator has been seeded
-            static bool s_seeded;
 
             template<class T> friend class Sessions;
         public:
