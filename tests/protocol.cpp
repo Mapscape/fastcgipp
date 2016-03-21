@@ -9,7 +9,7 @@ int main()
 {
     Fastcgipp::Logging::logTimestamp = true;  
 
-    INFO_LOG("Testing Fastcgipp::Protocol::BigEndian with a 64 bit signed integer")
+    // Testing Fastcgipp::Protocol::BigEndian with a 64 bit signed integer
     {
         const int64_t actual = -0x62c74ce376736dd0;
         const Fastcgipp::Protocol::BigEndian<int64_t> reversed(actual);
@@ -25,7 +25,7 @@ int main()
                     data[5] == 0x8c &&
                     data[6] == 0x92 &&
                     data[7] == 0x30))
-            ERROR_LOG("Test failed!!")
+            FAIL_LOG("Fastcgipp::Protocol::BigEndian with a 64 bit signed int")
     }
 
     std::random_device device;
@@ -33,7 +33,8 @@ int main()
     std::uniform_int_distribution<size_t> randomShortSize(1, 127);
     std::uniform_int_distribution<size_t> randomLongSize(128, 10000000);
 
-    INFO_LOG("Testing Fastcgipp::Protocol::processParamHeader() with short values and short names")
+    // Testing Fastcgipp::Protocol::processParamHeader() with short values and
+    // short names
     for(int i=0; i<10; ++i)
     {
         const size_t nameSize = randomShortSize(engine);
@@ -69,10 +70,12 @@ int main()
                 nameSizeResult == nameSize &&
                 valueResult == valueStart &&
                 valueSizeResult == valueSize)))
-            ERROR_LOG("Test failed!!")
+            FAIL_LOG("Fastcgipp::Protocol::processParamHeader with short "\
+                    "values and short names")
     }
 
-    INFO_LOG("Testing Fastcgii::Protocol::processParamHeader() with long values and short names")
+    // Testing Fastcgii::Protocol::processParamHeader() with long values and
+    // short names
     for(int i=0; i<100; ++i)
     {
         const size_t nameSize = randomShortSize(engine);
@@ -110,10 +113,12 @@ int main()
                 nameSizeResult == nameSize &&
                 valueResult == valueStart &&
                 valueSizeResult == valueSize)))
-            ERROR_LOG("Test failed!!")
+            FAIL_LOG("Fastcgipp::Protocol::processParamHeader with long "\
+                    "values and short names")
     }
 
-    INFO_LOG("Testing Fastcgii::Protocol::processParamHeader() with short values and long names")
+    // Testing Fastcgii::Protocol::processParamHeader() with short values and
+    // long names
     for(int i=0; i<10; ++i)
     {
         const size_t nameSize = randomLongSize(engine);
@@ -151,10 +156,12 @@ int main()
                 nameSizeResult == nameSize &&
                 valueResult == valueStart &&
                 valueSizeResult == valueSize)))
-            ERROR_LOG("Test failed!!")
+            FAIL_LOG("Fastcgipp::Protocol::processParamHeader with short "\
+                    "values and long names")
     }
 
-    INFO_LOG("Testing Fastcgii::Protocol::processParamHeader() with short values and long names")
+    // Testing Fastcgii::Protocol::processParamHeader() with long values and
+    // long names
     for(int i=0; i<10; ++i)
     {
         const size_t nameSize = randomLongSize(engine);
@@ -194,6 +201,9 @@ int main()
                 nameSizeResult == nameSize &&
                 valueResult == valueStart &&
                 valueSizeResult == valueSize)))
-            ERROR_LOG("Test failed!!")
+            FAIL_LOG("Fastcgipp::Protocol::processParamHeader with long "\
+                    "values and long names")
     }
+
+    return 0;
 }

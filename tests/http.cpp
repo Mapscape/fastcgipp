@@ -15,7 +15,7 @@ int main()
 {
     Fastcgipp::Logging::logTimestamp = true;  
 
-    INFO_LOG("Testing Fastcgipp::Http::Address")
+    // Test Fastcgipp::Http::Address
     {
         const unsigned char randomAddress1Data[Fastcgipp::Http::Address::size] =
         {
@@ -96,7 +96,7 @@ int main()
         correctAddresses.push_back(randomAddress1);
         correctAddresses.push_back(randomAddress2);
 
-        INFO_LOG("  Testing assign()")
+        // Test assign()
         {
             Fastcgipp::Http::Address address;
 
@@ -104,61 +104,67 @@ int main()
                     randomAddress1String,
                     randomAddress1String+sizeof(randomAddress1String)-1);
             if(address != randomAddress1)
-                ERROR_LOG("Error with randomAddress1")
+                FAIL_LOG("Fastcgipp::Http::Address::assign() with randomAddress1")
 
             address.assign(
                     randomAddress2String,
                     randomAddress2String+sizeof(randomAddress2String)-1);
             if(address != randomAddress2)
-                ERROR_LOG("Error with randomAddress2")
+                FAIL_LOG("Fastcgipp::Http::Address::assign() with randomAddress2")
 
             address.assign(
                     ipv4AddressStringNew,
                     ipv4AddressStringNew+sizeof(ipv4AddressStringNew)-1);
             if(address != ipv4Address)
-                ERROR_LOG("Error with ipv4Address new style")
+                FAIL_LOG("Fastcgipp::Http::Address::assign() with ipv4 new style")
 
             address.assign(
                     ipv4AddressStringOld,
                     ipv4AddressStringOld+sizeof(ipv4AddressStringOld)-1);
             if(address != ipv4Address)
-                ERROR_LOG("Error with ipv4Address old style")
+                FAIL_LOG("Fastcgipp::Http::Address::assign() with ipv4 old style")
 
             Fastcgipp::Logging::suppress=true;
             address.assign(
                     badAddressString1,
                     badAddressString1+sizeof(badAddressString1)-1);
             if(address)
-                ERROR_LOG("Error with bad address 1")
+                FAIL_LOG("Fastcgipp::Http::Address::assign() badAddress1")
 
             address.assign(
                     badAddressString2,
                     badAddressString2+sizeof(badAddressString2)-1);
             if(address)
-                ERROR_LOG("Error with bad address 2")
+                FAIL_LOG("Fastcgipp::Http::Address::assign() badAddress1")
             Fastcgipp::Logging::suppress=false;
         }
 
-        INFO_LOG("  Testing stream insertion")
+        // Test stream insertion
         {
             std::ostringstream ss;
 
             ss << randomAddress1;
             if(ss.str() != randomAddress1String)
-                ERROR_LOG("Error with randomAddress1. Got " << ss.str().c_str())
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream insertion with"\
+                        " randomAddress1. Got " << ss.str().c_str())
 
             ss.str("");
             ss << randomAddress2;
             if(ss.str() != randomAddress2String)
-                ERROR_LOG("Error with randomAddress2. Got " << ss.str().c_str())
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream insertion with"\
+                        " randomAddress2. Got " << ss.str().c_str())
 
             ss.str("");
             ss << ipv4Address;
             if(ss.str() != ipv4AddressStringNew)
-                ERROR_LOG("Error with ipv4Address. Got " << ss.str().c_str())
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream insertion with"\
+                        " ipv4Address. Got " << ss.str().c_str())
         }
 
-        INFO_LOG("  Testing stream extraction")
+        // Testing stream extraction
         {
             std::istringstream ss;
             Fastcgipp::Http::Address address;
@@ -167,41 +173,53 @@ int main()
             ss.str(randomAddress1String);
             ss >> address;
             if(address != randomAddress1)
-                ERROR_LOG("Error with randomAddress1")
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream extraction with"\
+                        " randomAddress1. Got " << ss.str().c_str())
 
             ss.clear();
             ss.str(randomAddress2String);
             ss >> address;
             if(address != randomAddress2)
-                ERROR_LOG("Error with randomAddress2")
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream extraction with"\
+                        " randomAddress2. Got " << ss.str().c_str())
 
             ss.clear();
             ss.str(ipv4AddressStringNew);
             ss >> address;
             if(address != ipv4Address)
-                ERROR_LOG("Error with ipv4Address new style")
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream extraction with"\
+                        " ipv4Address new style. Got " << ss.str().c_str())
 
             ss.clear();
             ss.str(ipv4AddressStringOld);
             ss >> address;
             if(address != ipv4Address)
-                ERROR_LOG("Error with ipv4Address old style")
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream extraction with"\
+                        " ipv4Address old style. Got " << ss.str().c_str())
 
             address.zero();
             ss.clear();
             ss.str(badAddressString1);
             ss >> address;
             if(address)
-                ERROR_LOG("Error with bad address 1")
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream extraction with"\
+                        " badAddress1. Got " << ss.str().c_str())
 
             ss.clear();
             ss.str(badAddressString2);
             ss >> address;
             if(address)
-                ERROR_LOG("Error with bad address 2")
+                FAIL_LOG(\
+                        "Fastcgipp::Http::Address stream extraction with"\
+                        " badAddress2. Got " << ss.str().c_str())
         }
 
-        INFO_LOG("  Testing sorting abilities")
+        // Testing sorting abilities
         {
             std::list<Fastcgipp::Http::Address> addresses;
             addresses.push_back(randomAddress1);
@@ -211,11 +229,11 @@ int main()
             addresses.sort();
 
             if(addresses != correctAddresses)
-                ERROR_LOG("Sorting did not work as expected")
+                FAIL_LOG("Fastcgipp::Http::Address sorting")
         }
     }
 
-    INFO_LOG("Testing base64 encoding/decoding stuff")
+    // Test base64 encoding/decoding stuff
     {
         const char string1[] =
             "ltG5tYELSwWdsqMJO+5vYCIjF5YduP0un4vohTdyieHCYXtK4dEk9UKoXGxl6lDAlQ"
@@ -327,7 +345,7 @@ int main()
         };
 
         std::array<char, 1024> string;
-        INFO_LOG("  Testing Fastcgipp::Http::base64Encode()")
+        // Test Fastcgipp::Http::base64Encode()
         {
             auto end = Fastcgipp::Http::base64Encode(
                     data1,
@@ -339,7 +357,7 @@ int main()
                         string1+sizeof(string1)-1,
                         string.begin(),
                         end))
-                ERROR_LOG("Error with data1. Got \"" \
+                FAIL_LOG("Fastcgipp::Http::base64Encode() with data1. Got \"" \
                         << std::wstring(string.begin(), end) << "\"")
 
             end = Fastcgipp::Http::base64Encode(
@@ -352,7 +370,7 @@ int main()
                         string2+sizeof(string2)-1,
                         string.begin(),
                         end))
-                ERROR_LOG("Error with data2. Got \"" \
+                FAIL_LOG("Fastcgipp::Http::base64Encode() with data2. Got \"" \
                         << std::wstring(string.begin(), end) << "\"")
 
             end = Fastcgipp::Http::base64Encode(
@@ -365,12 +383,12 @@ int main()
                         string3+sizeof(string3)-1,
                         string.begin(),
                         end))
-                ERROR_LOG("Error with data3. Got \"" \
+                FAIL_LOG("Fastcgipp::Http::base64Encode() with data3. Got \"" \
                         << std::wstring(string.begin(), end) << "\"")
         }
 
         std::array<unsigned char, 1024> data;
-        INFO_LOG("  Testing Fastcgipp::Http::base64Decode()")
+        // Test Fastcgipp::Http::base64Decode()
         {
             auto end = Fastcgipp::Http::base64Decode(
                     string1,
@@ -382,7 +400,7 @@ int main()
                         data1+sizeof(data1),
                         data.begin(),
                         end))
-                ERROR_LOG("Error with string1.")
+                FAIL_LOG("Fastcgipp::Http::base64Encode() with string1")
 
             end = Fastcgipp::Http::base64Decode(
                     string2,
@@ -394,7 +412,7 @@ int main()
                         data2+sizeof(data2),
                         data.begin(),
                         end))
-                ERROR_LOG("Error with string2.")
+                FAIL_LOG("Fastcgipp::Http::base64Encode() with string2")
 
             end = Fastcgipp::Http::base64Decode(
                     string3,
@@ -406,11 +424,11 @@ int main()
                         data3+sizeof(data3),
                         data.begin(),
                         end))
-                ERROR_LOG("Error with string3.")
+                FAIL_LOG("Fastcgipp::Http::base64Encode() with string3")
         }
     }
 
-    INFO_LOG("Testing Fastcgipp::Http::percentEscapedToRealBytes()")
+    // Test Fastcgipp::Http::percentEscapedToRealBytes()
     {
         const char properDecoded[] =
             "E#H8i*H8!TkuxIGQya7bd^b%(JcEfkT5h#1qPift#VXDONNPhEUg_XYsH(if*7wz";
@@ -431,10 +449,10 @@ int main()
                     end,
                     properDecoded,
                     properDecoded+sizeof(properDecoded)-1))
-            ERROR_LOG("Error decoding")
+            FAIL_LOG("Fastcgipp::Http::percentEscapedToRealBytes()")
     }
 
-    INFO_LOG("Testing Fastcgipp::Http::decodeUrlEncoded()")
+    // Testing Fastcgipp::Http::decodeUrlEncoded()
     {
         const char input[] =
             "%268c2LuPm=ccPd%5E92c%24Qd_1ab41hq%5EHDjHp!t!NJBa"
@@ -471,10 +489,10 @@ int main()
         Fastcgipp::Http::decodeUrlEncoded(input, input+sizeof(input)-1, output);
 
         if(output != properOutput)
-            ERROR_LOG("Error decoded a string")
+            FAIL_LOG("Fastcgipp::Http::decodeUrlEncoded()")
     }
 
-    INFO_LOG("Testing Fastcgipp::Http::Environment")
+    // Testing Fastcgipp::Http::Environment
     {
         Fastcgipp::Http::Address loopback;
         loopback.m_data.back() = 1;
@@ -541,7 +559,7 @@ int main()
                         value));
         }
 
-        INFO_LOG("  Doing test with multipart POST")
+        // Doing test with multipart POST
         {
             Fastcgipp::Http::Environment<wchar_t> environment;
             {
@@ -552,7 +570,7 @@ int main()
                             (const char*)multipartParam+sizeof(multipartParam));
                 }
 
-                INFO_LOG("    Checking parameters")
+                // Check parameters
                 if(
                         environment.host != L"localhost" ||
                         environment.userAgent != L"Mozilla/5.0 (X11; Linux"
@@ -581,21 +599,25 @@ int main()
                         environment.remoteAddress != loopback ||
                         environment.serverPort != 80 ||
                         environment.remotePort != 49003)
-                        ERROR_LOG("Didn't get the right parameters" << environment.serverPort)
+                    FAIL_LOG("Fastcgipp::Http::Environment multipart "\
+                            "parameters didn't decode properly")
 
-                INFO_LOG("    Checking pathInfo")
+                // Checking pathInfo
                 if(properPath != environment.pathInfo)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment multipart "\
+                            "pathInfo didn't decode properly")
 
-                INFO_LOG("    Checking gets")
+                // Checking gets
                 if(properGets != environment.gets)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment multipart "\
+                            "gets didn't decode properly")
 
-                INFO_LOG("    Checking cookies")
+                // Checking cookies
                 if(properCookies != environment.cookies)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment multipart "\
+                            "cookies didn't decode properly")
 
-                INFO_LOG("    Checking posts")
+                // Checking posts
                 {
 #include "multipartPost.h"
                     environment.fillPostBuffer(
@@ -607,9 +629,10 @@ int main()
                     environment.parsePostBuffer();
                 }
                 if(properPosts != environment.posts)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment multipart "\
+                            "posts didn't decode properly")
 
-                INFO_LOG("    Checking files")
+                // Checking files
                 {
 #include "gnu.png.h"
                     if(
@@ -626,12 +649,13 @@ int main()
                                 (const char*)gnu_png,
                                 (const char*)gnu_png+sizeof(gnu_png),
                                 environment.files.begin()->second.data()))
-                        ERROR_LOG("fail");
+                        FAIL_LOG("Fastcgipp::Http::Environment multipart "\
+                                "files didn't decode properly")
                 }
             }
         }
 
-        INFO_LOG("  Doing test with urlencoded POST")
+        // Doing test with urlencoded POST
         {
             Fastcgipp::Http::Environment<wchar_t> environment;
             {
@@ -651,7 +675,7 @@ int main()
                             L"enctype",
                             L"url-encoded"));
 
-                INFO_LOG("    Checking parameters")
+                // Checking parameters
                 if(
                         environment.host != L"localhost" ||
                         environment.userAgent != L"Mozilla/5.0 (X11; Linux"
@@ -680,21 +704,25 @@ int main()
                         environment.remoteAddress != loopback ||
                         environment.serverPort != 80 ||
                         environment.remotePort != 49116)
-                        ERROR_LOG("Didn't get the right parameters" << environment.serverPort)
+                    FAIL_LOG("Fastcgipp::Http::Environment urlencoded "\
+                            "parameters didn't decode properly")
 
-                INFO_LOG("    Checking pathInfo")
+                // Checking pathInfo
                 if(properPath != environment.pathInfo)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment urlencoded "\
+                            "pathInfo didn't decode properly")
 
-                INFO_LOG("    Checking gets")
+                // Checking gets
                 if(properGets != environment.gets)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment urlencoded "\
+                            "gets didn't decode properly")
 
-                INFO_LOG("    Checking cookies")
+                // Checking cookies
                 if(properCookies != environment.cookies)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment urlencoded "\
+                            "cookies didn't decode properly")
 
-                INFO_LOG("    Checking posts")
+                // Checking posts
                 {
 #include "urlencodedPost.h"
                     environment.fillPostBuffer(
@@ -706,12 +734,13 @@ int main()
                     environment.parsePostBuffer();
                 }
                 if(properPosts != environment.posts)
-                    ERROR_LOG("fail")
+                    FAIL_LOG("Fastcgipp::Http::Environment urlencoded "\
+                            "posts didn't decode properly")
             }
         }
     }
 
-    INFO_LOG("Testing Fastcgipp::Http::SessionId")
+    // Testing Fastcgipp::Http::SessionId
     {
         Fastcgipp::Http::SessionId session1;
         std::ostringstream ss;
@@ -719,10 +748,10 @@ int main()
         Fastcgipp::Http::SessionId session2(ss.str().data());
 
         if(!(session2 == session1))
-            ERROR_LOG("  Test session IDs not equal.")
+            FAIL_LOG("Fastcgipp::Http::SessionId")
     }
 
-    INFO_LOG("Testing Fastcgipp::Http::Sessions")
+    // Testing Fastcgipp::Http::Sessions
     {
         std::random_device device;
         std::uniform_int_distribution<unsigned short> alphanumeric(0, 61);
@@ -740,11 +769,12 @@ int main()
             sessions.generate(data);
         }
         if(sessions.size() != 100)
-            ERROR_LOG("  Error inserting sessions!");
+            FAIL_LOG("Fastcgipp::Http::Sessions error inserting");
         std::this_thread::sleep_for(std::chrono::seconds(2));
         sessions.cleanup();
         if(sessions.size() != 100)
-            ERROR_LOG("  Cleanup worked when it shouldn't have!");
+            FAIL_LOG("Fastcgipp::Http::Sessions cleanup worked when it "\
+                    "shouldn't have");
 
         for(int i=0; i<100; ++i)
         {
@@ -758,11 +788,11 @@ int main()
             ss << it->first << ' ' << it->second << std::endl;
         }
         if(sessions.size() != 200)
-            ERROR_LOG("  Error inserting more sessions!");
+            FAIL_LOG("Fastcgipp::Http::Sessions error inserting more sessions");
         std::this_thread::sleep_for(std::chrono::seconds(3));
         sessions.cleanup();
         if(sessions.size() != 100)
-            ERROR_LOG("  Cleanup didn't work!");
+            FAIL_LOG("Fastcgipp::Http::Sessions cleanup didn't work");
 
         for(int i=0; i<100; ++i)
         {
@@ -780,9 +810,11 @@ int main()
 
             auto it = sessions.find(sessionId);
             if(it == sessions.end())
-                ERROR_LOG("  Session " << sessionId << " missing!")
+                FAIL_LOG("Fastcgipp::Http::Sessions session(s) missing");
             if(it->second != data)
-                ERROR_LOG("  Session data does not match.")
+                FAIL_LOG("Fastcgipp::Http::Sessions session data non matching");
         }
     }
+
+    return 0;
 }
