@@ -31,6 +31,8 @@
 #include <iomanip>
 #include <iostream>
 #include <ctime>
+#include <chrono>
+#include <cmath>
 
 std::wostream* Fastcgipp::Logging::logstream(&std::wcerr);
 bool Fastcgipp::Logging::logTimestamp(false);
@@ -41,9 +43,14 @@ void Fastcgipp::Logging::timestamp()
 {
     if(logTimestamp)
     {
-        std::time_t now = std::time(nullptr);
-        *logstream << std::put_time(
-                std::localtime(&now),
-                L"[%Y-%b-%d %H:%M:%S] ");
+        const auto now = std::chrono::high_resolution_clock::now();
+        const auto nowTimeT = std::chrono::system_clock::to_time_t(now);
+        const auto ms =
+            (unsigned long)(std::chrono::duration<double, std::milli>(
+                now.time_since_epoch()).count())%1000;
+
+        *logstream
+            << std::put_time(std::localtime(&nowTimeT), L"[%Y-%b-%d %H:%M:%S.")
+            << ms << L"] ";
     }
 }
