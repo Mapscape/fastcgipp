@@ -2,7 +2,7 @@
  * @file       log.hpp
  * @brief      Declares the Fastcgipp debugging/logging mechanism
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 21, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -49,6 +49,9 @@ namespace Fastcgipp
 
         //! Send a timestamp to logstream if logTimestamp is true
         void timestamp();
+
+        //! Set to true if you want to suppress non-error logs
+        extern bool suppress;
     }
 }
 
@@ -58,6 +61,7 @@ namespace Fastcgipp
 
 //! This is for the user to log whatever they want.
 #define INFO_LOG(data) \
+    if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
         ::Fastcgipp::Logging::timestamp();\
@@ -79,6 +83,7 @@ namespace Fastcgipp
 #if LOG_LEVEL > 1
 //! The intention here is to log any "errors" that are not terminal.
 #define WARNING_LOG(data) \
+    if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
         ::Fastcgipp::Logging::timestamp();\
@@ -91,6 +96,7 @@ namespace Fastcgipp
 #if LOG_LEVEL > 2
 //! The intention here is for general debug/analysis logging
 #define DEBUG_LOG(data) \
+    if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
         ::Fastcgipp::Logging::timestamp();\

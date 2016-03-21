@@ -96,7 +96,7 @@ int main()
         correctAddresses.push_back(randomAddress1);
         correctAddresses.push_back(randomAddress2);
 
-        INFO_LOG("  Testing assign(). Ignore the following warnings.")
+        INFO_LOG("  Testing assign()")
         {
             Fastcgipp::Http::Address address;
 
@@ -124,6 +124,7 @@ int main()
             if(address != ipv4Address)
                 ERROR_LOG("Error with ipv4Address old style")
 
+            Fastcgipp::Logging::suppress=true;
             address.assign(
                     badAddressString1,
                     badAddressString1+sizeof(badAddressString1)-1);
@@ -135,6 +136,7 @@ int main()
                     badAddressString2+sizeof(badAddressString2)-1);
             if(address)
                 ERROR_LOG("Error with bad address 2")
+            Fastcgipp::Logging::suppress=false;
         }
 
         INFO_LOG("  Testing stream insertion")
