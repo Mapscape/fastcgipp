@@ -7,6 +7,9 @@
 #include <algorithm>
 #include <string>
 #include <map>
+#include <thread>
+#include <chrono>
+#include <random>
 
 int main()
 {
@@ -703,6 +706,81 @@ int main()
                 if(properPosts != environment.posts)
                     ERROR_LOG("fail")
             }
+        }
+    }
+
+    INFO_LOG("Testing Fastcgipp::Http::SessionId")
+    {
+        Fastcgipp::Http::SessionId session1;
+        std::ostringstream ss;
+        ss << session1;
+        Fastcgipp::Http::SessionId session2(ss.str().data());
+
+        if(!(session2 == session1))
+            ERROR_LOG("  Test session IDs not equal.")
+    }
+
+    INFO_LOG("Testing Fastcgipp::Http::Sessions")
+    {
+        std::random_device device;
+        std::uniform_int_distribution<unsigned short> alphanumeric(0, 61);
+        Fastcgipp::Http::Sessions<std::wstring> sessions(3, 4);
+        std::wstringstream ss;
+
+        for(int i=0; i<100; ++i)
+        {
+            std::wstring data;
+            for(int i=0; i<16; ++i)
+                data.push_back(
+                        Fastcgipp::Http::base64Characters[
+                            alphanumeric(device)]);
+
+            sessions.generate(data);
+        }
+        if(sessions.size() != 100)
+            ERROR_LOG("  Error inserting sessions!");
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        sessions.cleanup();
+        if(sessions.size() != 100)
+            ERROR_LOG("  Cleanup worked when it shouldn't have!");
+
+        for(int i=0; i<100; ++i)
+        {
+            std::wstring data;
+            for(int i=0; i<16; ++i)
+                data.push_back(
+                        Fastcgipp::Http::base64Characters[
+                            alphanumeric(device)]);
+
+            auto it = sessions.generate(data);
+            ss << it->first << ' ' << it->second << std::endl;
+        }
+        if(sessions.size() != 200)
+            ERROR_LOG("  Error inserting more sessions!");
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        sessions.cleanup();
+        if(sessions.size() != 100)
+            ERROR_LOG("  Cleanup didn't work!");
+
+        for(int i=0; i<100; ++i)
+        {
+            std::wstring data;
+            std::wstring sessionId_wchar;
+            std::string sessionId_char;
+
+            ss >> sessionId_wchar >> data;
+            sessionId_char.resize(sessionId_wchar.size());
+            std::copy(
+                    sessionId_wchar.begin(),
+                    sessionId_wchar.end(),
+                    sessionId_char.begin());
+            Fastcgipp::Http::SessionId sessionId(sessionId_char.data());
+
+            auto it = sessions.find(sessionId);
+            if(it == sessions.end())
+                ERROR_LOG("  Session " << sessionId << " missing!")
+            if(it->second != data)
+                ERROR_LOG("  Session data does not match.")
         }
     }
 }
