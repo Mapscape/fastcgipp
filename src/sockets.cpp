@@ -155,11 +155,8 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
         }
 
         if(pollResult<0)
-        {
-            ERROR_LOG("Error on epoll_wait() with epfd " \
+            FAIL_LOG("Error on epoll_wait() with epfd " \
                     << m_poll << ": " << std::strerror(errno))
-            exit(1);
-        }
         else if(pollResult == 1)
         {
             if(event.data.fd == m_listen)
@@ -170,15 +167,9 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
                     continue;
                 }
                 else if(event.events & EPOLLERR)
-                {
-                    ERROR_LOG("Error in listen socket.")
-                    exit(1);
-                }
+                    FAIL_LOG("Error in listen socket.")
                 else if(event.events & EPOLLHUP)
-                {
-                    ERROR_LOG("Error: the listen socket hung up.")
-                    exit(1);
-                }
+                    FAIL_LOG("Error: the listen socket hung up.")
             }
             else if(event.data.fd == m_wakeSockets[1])
             {
@@ -190,15 +181,9 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
                     continue;
                 }
                 else if(event.events & EPOLLHUP)
-                {
-                    ERROR_LOG("Error: the wakeup socket hung up.")
-                    exit(1);
-                }
+                    FAIL_LOG("Error: the wakeup socket hung up.")
                 else if(event.events & EPOLLERR)
-                {
-                    ERROR_LOG("Error in the wakeup socket.")
-                    exit(1);
-                }
+                    FAIL_LOG("Error in the wakeup socket.")
             }
             else
             {
@@ -260,12 +245,9 @@ void Fastcgipp::Listener::createSocket()
             (::sockaddr*)&addr,
             &addrlen);
     if(socket<0)
-    {
-        ERROR_LOG("Error on accept() with fd " \
+        FAIL_LOG("Error on accept() with fd " \
                 << m_listen << ": " \
                 << std::strerror(errno))
-        exit(1);
-    }
     if(::fcntl(
             socket,
             F_SETFL,
