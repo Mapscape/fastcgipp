@@ -31,6 +31,7 @@
 
 #include <ostream>
 #include <mutex>
+#include <cstdlib>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -66,6 +67,16 @@ namespace Fastcgipp
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
         ::Fastcgipp::Logging::timestamp();\
         *::Fastcgipp::Logging::logstream << "[info] " << data << std::endl;\
+    }
+
+//! The intention here is to log any "errors" that are terminal and then exit.
+#define FAIL_LOG(data) \
+    if(!::Fastcgipp::Logging::suppress)\
+    { \
+        std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
+        ::Fastcgipp::Logging::timestamp();\
+        *::Fastcgipp::Logging::logstream << "[fail] " << data << std::endl;\
+        std::exit(EXIT_FAILURE);\
     }
 
 #if LOG_LEVEL > 0
