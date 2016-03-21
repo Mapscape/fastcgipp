@@ -580,7 +580,7 @@ Fastcgipp::Http::SessionId::SessionId()
 
     for(unsigned char& byte: m_data)
         byte = (unsigned char)distribution(device);
-    m_timestamp = std::time_t(nullptr);
+    m_timestamp = std::time(nullptr);
 }
 
 template const Fastcgipp::Http::SessionId&

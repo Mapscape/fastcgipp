@@ -550,7 +550,7 @@ namespace Fastcgipp
             static const unsigned int size=16;
 
             //! Size in characters of string representation
-            static const unsigned int stringLength=(size*4-1)/3+1;
+            static const unsigned int stringLength=((size-1)/3+1)*4;
 
         private:
             //! ID data
@@ -620,7 +620,7 @@ namespace Fastcgipp
             //! Resets the last access timestamp to the current time.
             void refresh() const
             {
-                m_timestamp = std::time_t(nullptr);
+                m_timestamp = std::time(nullptr);
             }
         };
 
@@ -654,32 +654,28 @@ namespace Fastcgipp
         {
         private:
             //! Amount of seconds to keep sessions around for.
-            const unsigned int keepAlive;
+            const unsigned int m_keepAlive;
 
             //! How often the container should find old sessions and purge.
-            const unsigned int cleanupFrequency;
+            const unsigned int m_cleanupFrequency;
 
             //! The time that the next session cleanup should be done.
-            std::time_t cleanupTime;
+            std::time_t m_cleanupTime;
         public:
-            typedef typename std::map<SessionId, T>::iterator iterator;
-
-            typedef typename std::map<SessionId, T>::const_iterator const_iterator;
-
             //! Constructor takes session keep alive times and cleanup frequency.
             /*!
-             * @param[in] keepAlive_ Amount of seconds a session will stay alive
+             * @param[in] keepAlive Amount of seconds a session will stay alive
              *                       for.
-             * @param[in] cleanupFrequency_ How often (in seconds) the container
+             * @param[in] cleanupFrequency How often (in seconds) the container
              *                              should find old sessions and delete
              *                              them.
              */
             Sessions(
-                    unsigned int keepAlive_,
-                    unsigned int cleanupFrequency_):
-                keepAlive(keepAlive_),
-                cleanupFrequency(cleanupFrequency_),
-                cleanupTime(std::time(nullptr)+cleanupFrequency)
+                    unsigned int keepAlive,
+                    unsigned int cleanupFrequency):
+                m_keepAlive(keepAlive),
+                m_cleanupFrequency(cleanupFrequency),
+                m_cleanupTime(std::time(nullptr)+cleanupFrequency)
             {}
 
             //! Clean out old sessions.
@@ -698,25 +694,29 @@ namespace Fastcgipp
              *
              * @return Iterator pointing to the newly created session.
              */
-            iterator generate(const T& value_ = T());
+            typename std::map<SessionId, T>::iterator generate(
+                    const T& value = T());
         };
     }
 }
 
 template<class T> void Fastcgipp::Http::Sessions<T>::cleanup()
 {
-    if(std::time(nullptr) < cleanupTime)
+    const std::time_t now = std::time(nullptr);
+    if(now < m_cleanupTime)
         return;
-    std::time_t oldest(std::time(nullptr)-keepAlive);
-    iterator it = this->begin();
-    while(it != this->end())
+
+    const std::time_t oldest(now-m_keepAlive);
+
+    auto session = this->begin();
+    while(session != this->end())
     {
-        if(it->first.timestamp < oldest)
-            it = erase(it);
+        if(session->first.m_timestamp < oldest)
+            session = this->erase(session);
         else
-            ++it;
+            ++session;
     }
-    cleanupTime=std::time(nullptr)+cleanupFrequency;
+    m_cleanupTime = std::time(nullptr)+m_cleanupFrequency;
 }
 
 template<class In, class Out>
@@ -796,13 +796,14 @@ Out Fastcgipp::Http::base64Encode(In start, In end, Out destination)
 }
 
 template<class T>
-typename Fastcgipp::Http::Sessions<T>::iterator
-Fastcgipp::Http::Sessions<T>::generate(const T& value_)
+typename std::map<Fastcgipp::Http::SessionId, T>::iterator
+Fastcgipp::Http::Sessions<T>::generate(const T& value)
 {
-    std::pair<iterator,bool> retVal;
+    std::pair<typename std::map<Fastcgipp::Http::SessionId, T>::iterator,bool>
+        retVal;
     retVal.second=false;
     while(!retVal.second)
-        retVal=insert(std::pair<SessionId, T>(SessionId(), value_));
+        retVal=this->insert(std::pair<SessionId, T>(SessionId(), value));
     return retVal.first;
 }
 
