@@ -1,5 +1,6 @@
 # fastcgi++ #
-### Eddie Carle ###
+#### 3.0alpha ####
+#### Eddie Carle ####
 
 ## Introduction ##
 
