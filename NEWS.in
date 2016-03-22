@@ -1,5 +1,0 @@
-Version _VERSION_ - _DATE_, by Eddie Carle
-
-* Code transfered from svn to git
-* Added SQL Support included a MySQL engine
-* Converted package to autotools
