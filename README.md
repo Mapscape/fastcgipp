@@ -1,9 +1,7 @@
-                              fastcgi++
-                           _VERSION_
-                            _DATE_
-                             Eddie Carle
+# fastcgi++ #
+### Eddie Carle ###
 
-Introduction
+## Introduction ##
 
 The fastcgi++ library started out as a C++ alternative to the official FastCGI 
 developers kit. Although the official developers kit provided some degree of 
@@ -21,18 +19,18 @@ Internationalization and Unicode support is another top priority. The library
 is templated to allow internal wide character use for efficient text processing 
 while code converting down to utf-8 upon transmission to the client.
 
-Features
+## Features ##
 
- * Support for multiple locales and characters sets including wide Unicode and 
+ - Support for multiple locales and characters sets including wide Unicode and 
    utf-8
- * Internally manages simultaneous requests instead of leaving that to the user
- * Establishes session data into usable data structures
- * Implements a task manager that can not only easily communicate outside the 
+ - Internally manages simultaneous requests instead of leaving that to the user
+ - Establishes session data into usable data structures
+ - Implements a task manager that can not only easily communicate outside the 
    library, but with separate threads
- * Provides a familiar io interface by implementing it through STL iostreams
- * Complete compliance with FastCGI protocol version 1
+ - Provides a familiar io interface by implementing it through STL iostreams
+ - Complete compliance with FastCGI protocol version 1
 
-Overview
+## Overview ##
 
 The fastcgi++ library is built around three classes. Fastcgipp::Manager handles 
 all task and request management along with the communication inside and outside 
@@ -61,8 +59,3 @@ Fastcgipp::Transceiver's transmit half implements a cyclic buffer that can grow
 indefinitely to insure that operation does not halt. The send half receives 
 full frames and passes them through Fastcgipp::Manager onto the requests. It 
 manages all the open connections and polls them for incoming data.
-
-Dependencies
-
- * Boost C++ Libraries >1.35.0
- * Posix compliant OS (socket stuff)
