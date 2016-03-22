@@ -155,8 +155,10 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
         }
 
         if(pollResult<0)
+        {
             FAIL_LOG("Error on epoll_wait() with epfd " \
                     << m_poll << ": " << std::strerror(errno))
+        }
         else if(pollResult == 1)
         {
             if(event.data.fd == m_listen)
@@ -167,9 +169,13 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
                     continue;
                 }
                 else if(event.events & EPOLLERR)
+                {
                     FAIL_LOG("Error in listen socket.")
+                }
                 else if(event.events & EPOLLHUP)
+                {
                     FAIL_LOG("Error: the listen socket hung up.")
+                }
             }
             else if(event.data.fd == m_wakeSockets[1])
             {
@@ -181,9 +187,13 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
                     continue;
                 }
                 else if(event.events & EPOLLHUP)
+                {
                     FAIL_LOG("Error: the wakeup socket hung up.")
+                }
                 else if(event.events & EPOLLERR)
+                {
                     FAIL_LOG("Error in the wakeup socket.")
+                }
             }
             else
             {
