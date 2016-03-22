@@ -30,7 +30,7 @@ if(UNIX)
     set(
         CMAKE_CXX_FLAGS_RELEASE
         "-O3 -march=native -mtune=native -std=c++14 -Wall -Werror")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -ggdb -std=c++14 -Wall -Werror")
+    set(CMAKE_CXX_FLAGS_DEBUG "-Og -g -ggdb -std=c++14 -Wall -Werror")
 endif()
 
 # Our configuration 
