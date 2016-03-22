@@ -95,5 +95,6 @@ if(DOXYGEN_FOUND)
         COMMENT "Generating API documentation with Doxygen" VERBATIM)
     install(
         DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/doc"
-        DESTINATION "share/fastcgi++")
+        DESTINATION "share/fastcgi++"
+        OPTIONAL)
 endif(DOXYGEN_FOUND)
