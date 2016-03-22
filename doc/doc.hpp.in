@@ -20,9 +20,9 @@
 
 /*!
 
-\version $(VERSION)
+\version @VERSION@
 \author Eddie Carle
-\date $(DATE)
+\date @BUILD_TIME@
 \mainpage
 
 \ref intro \n

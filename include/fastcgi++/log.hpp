@@ -2,7 +2,7 @@
  * @file       log.hpp
  * @brief      Declares the Fastcgipp debugging/logging mechanism
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 21, 2016
+ * @date       March 22, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -28,6 +28,8 @@
 
 #ifndef LOG_HPP
 #define LOG_HPP
+
+#include "fastcgi++/config.h"
 
 #include <ostream>
 #include <mutex>
@@ -56,10 +58,6 @@ namespace Fastcgipp
     }
 }
 
-#ifndef LOG_LEVEL
-#define LOG_LEVEL 2
-#endif
-
 //! This is for the user to log whatever they want.
 #define INFO_LOG(data) \
     if(!::Fastcgipp::Logging::suppress)\
@@ -79,7 +77,7 @@ namespace Fastcgipp
         std::exit(EXIT_FAILURE);\
     }
 
-#if LOG_LEVEL > 0
+#if FASTCGIPP_LOG_LEVEL > 0
 //! The intention here is to log any "errors" that are terminal.
 #define ERROR_LOG(data) \
     { \
@@ -91,7 +89,7 @@ namespace Fastcgipp
 #define ERROR_LOG(data)
 #endif
 
-#if LOG_LEVEL > 1
+#if FASTCGIPP_LOG_LEVEL > 1
 //! The intention here is to log any "errors" that are not terminal.
 #define WARNING_LOG(data) \
     if(!::Fastcgipp::Logging::suppress)\
@@ -104,7 +102,7 @@ namespace Fastcgipp
 #define WARNING_LOG(data)
 #endif
 
-#if LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 2
 //! The intention here is for general debug/analysis logging
 #define DEBUG_LOG(data) \
     if(!::Fastcgipp::Logging::suppress)\
