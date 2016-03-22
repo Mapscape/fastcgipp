@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 22, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -246,7 +246,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    March 5, 2016
+     * @date    March 22, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Listener

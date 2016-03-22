@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 22, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -182,7 +182,8 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
                 if(event.events & EPOLLIN)
                 {
                     char x[256];
-                    read(m_wakeSockets[1], x, 256);
+                    if(read(m_wakeSockets[1], x, 256)<1)
+                        FAIL_LOG("Error: couldn't read out of wakeup socket")
                     block=false;
                     continue;
                 }
@@ -242,7 +243,8 @@ void Fastcgipp::Listener::wake()
         m_sleeping=false;
         lock.unlock();
         char x=0;
-        write(m_wakeSockets[0], &x, 1);
+        if(write(m_wakeSockets[0], &x, 1) != 1)
+            FAIL_LOG("Error: couldn't write to wakeup socket")
     }
 }
 
