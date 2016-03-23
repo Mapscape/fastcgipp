@@ -24,7 +24,7 @@ elseif(UNIX)
 elseif(WIN32)
     message(FATAL_ERROR "Windows systems not supported")
     set(SYSTEM "WINDOWS")
-else
+else()
     message(FATAL_ERROR "Unknown operating system")
 endif()
 
