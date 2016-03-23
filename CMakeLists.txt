@@ -19,9 +19,13 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(SYSTEM "LINUX")
 elseif(UNIX)
+    message(FATAL_ERROR "Non-Linux unix systems not supported")
     set(SYSTEM "UNIX")
 elseif(WIN32)
+    message(FATAL_ERROR "Windows systems not supported")
     set(SYSTEM "WINDOWS")
+else
+    message(FATAL_ERROR "Unknown operating system")
 endif()
 
 # Set compile flags for gcc and clang
