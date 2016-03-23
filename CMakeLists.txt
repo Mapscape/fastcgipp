@@ -31,11 +31,11 @@ endif()
 # Set compile flags for gcc and clang
 if(UNIX)
     set(CMAKE_CXX_FLAGS
-        "-march=native $ENV{CXXFLAGS} -O0 -std=c++14 -Wall -Werror")
+        "$ENV{CXXFLAGS} -O0 -std=c++14 -Wall -Werror")
     set(CMAKE_CXX_FLAGS_RELEASE
-        "-march=native $ENV{CXXFLAGS} -O3 -std=c++14 -Wall -Werror")
+        "$ENV{CXXFLAGS} -O3 -std=c++14 -Wall -Werror")
     set(CMAKE_CXX_FLAGS_DEBUG
-        "-march=native $ENV{CXXFLAGS} -Og -g -ggdb -std=c++14 -Wall -Werror")
+        "$ENV{CXXFLAGS} -Og -g -ggdb -std=c++14 -Wall -Werror")
 endif()
 
 # Our configuration 
