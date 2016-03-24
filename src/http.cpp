@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 20, 2016
+ * @date       March 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -583,20 +583,22 @@ Fastcgipp::Http::SessionId::SessionId()
     m_timestamp = std::time(nullptr);
 }
 
-template const Fastcgipp::Http::SessionId&
-Fastcgipp::Http::SessionId::operator=<const char>(const char* data);
-template const Fastcgipp::Http::SessionId&
-Fastcgipp::Http::SessionId::operator=<const wchar_t>(const wchar_t* data);
-template<class charT> const Fastcgipp::Http::SessionId&
-Fastcgipp::Http::SessionId::operator=(charT* data)
+template Fastcgipp::Http::SessionId::SessionId<char>(
+        const std::basic_string<char>& string);
+template Fastcgipp::Http::SessionId::SessionId<wchar_t>(
+        const std::basic_string<wchar_t>& string);
+template<class charT> Fastcgipp::Http::SessionId::SessionId(
+        const std::basic_string<charT>& string)
 {
     base64Decode(
-            data,
-            data+stringLength,
+            string.begin(),
+            string.begin()+std::min(stringLength, string.size()),
             m_data.begin());
     m_timestamp = std::time(nullptr);
-    return *this;
 }
+
+const size_t Fastcgipp::Http::SessionId::stringLength;
+const size_t Fastcgipp::Http::SessionId::size;
 
 template void Fastcgipp::Http::decodeUrlEncoded<char>(
         const char* start,

@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 20, 2016
+ * @date       March 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -540,17 +540,17 @@ namespace Fastcgipp
 
         //! Defines ID values for HTTP sessions.
         /*!
-         * @date    March 20, 2016
+         * @date    March 24, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class SessionId
         {
         public:
-            //! Size in bytes of the ID data
-            static const unsigned int size=16;
+            //! Size in bytes of the ID data. Make sure it is a multiple of 3.
+            static const size_t size=15;
 
             //! Size in characters of string representation
-            static const unsigned int stringLength=((size-1)/3+1)*4;
+            static const size_t stringLength=size*4/3;
 
         private:
             //! ID data
@@ -558,6 +558,12 @@ namespace Fastcgipp
 
             //! Contains the time this session was last used
             mutable std::time_t m_timestamp;
+
+            //! Resets the last access timestamp to the current time.
+            void refresh() const
+            {
+                m_timestamp = std::time(nullptr);
+            }
 
             template<class T> friend class Sessions;
         public:
@@ -570,31 +576,15 @@ namespace Fastcgipp
                 std::copy(x.m_data.begin(), x.m_data.end(), m_data.begin());
             }
 
-            const SessionId& operator=(const SessionId& x)
-            {
-                std::copy(x.m_data.begin(), x.m_data.end(), m_data.begin());
-                m_timestamp=x.m_timestamp;
-                return *this;
-            }
-
-            //! Assign the ID data with a base64 encoded string
-            /*!
-             * Note that only stringLength bytes will be read from the string.
-             *
-             * @param data Pointer to beginning of base64 encoded string
-             */
-            template<class charT> const SessionId& operator=(charT* data);
-
             //! Initialize the ID data with a base64 encoded string
             /*!
-             * Note that only stringLength bytes will be read from the string.
+             * Note that only stringLength characeters will be read from the
+             * string.
              *
-             * @param data Pointer to beginning of base64 encoded string
+             * @param data Reference to base64 encoded string
              */
-            template<class charT> SessionId(charT* data)
-            {
-                *this=data;
-            }
+            template<class charT>
+            SessionId(const std::basic_string<charT>& string);
 
             template<class charT, class Traits>
             friend std::basic_ostream<charT, Traits>& operator<<(
@@ -616,12 +606,6 @@ namespace Fastcgipp
                         x.m_data.data(),
                         SessionId::size)==0;
             }
-
-            //! Resets the last access timestamp to the current time.
-            void refresh() const
-            {
-                m_timestamp = std::time(nullptr);
-            }
         };
 
         //! Output the ID data in base64 encoding
@@ -639,18 +623,22 @@ namespace Fastcgipp
 
         //! Container for HTTP sessions
         /*!
-         *  In almost all ways this class behaves like an std::map. The sole
-         *  addition is a mechanism for clearing out expired sessions based on
-         *  a keep alive time and a frequency of deletion. The first part of
-         *  the std::pair<> is a SessionId object, and the second is an object
-         *  of class T (passed as the template parameter.
+         * In many ways this class behaves like an std::map. Additions include
+         * a mechanism for clearing out expired sessions based on a keep alive
+         * time and a frequency of deletion, and full thread safety. Basically
+         * it contains all session data and associates it with ID values.
+         *
+         * Session data is only available as constant in order to ensure thread
+         * safety when accessing the data. It is not only possible, but very
+         * probable, that multiple requests/threads will be accessing the same
+         * session data simultaneously.
          *
          * @tparam T Class containing session data.
          *
-         * @date    March 11, 2016
+         * @date    March 24, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
-        template<class T> class Sessions: public std::map<SessionId, T>
+        template<class T> class Sessions
         {
         private:
             //! Amount of seconds to keep sessions around for.
@@ -661,14 +649,21 @@ namespace Fastcgipp
 
             //! The time that the next session cleanup should be done.
             std::time_t m_cleanupTime;
+
+            //! Actual container of sessions
+            std::map<SessionId, std::shared_ptr<const T>> m_sessions;
+
+            //! Thread safe all operations
+            mutable std::mutex m_mutex;
+
         public:
             //! Constructor takes session keep alive times and cleanup frequency.
             /*!
              * @param[in] keepAlive Amount of seconds a session will stay alive
-             *                       for.
+             *                      for.
              * @param[in] cleanupFrequency How often (in seconds) the container
-             *                              should find old sessions and delete
-             *                              them.
+             *                             should find old sessions and delete
+             *                             them.
              */
             Sessions(
                     unsigned int keepAlive,
@@ -688,35 +683,40 @@ namespace Fastcgipp
              */
             void cleanup();
 
-            //! Generates a new session pair with a random ID value
+            //! Get session data from session ID
             /*!
-             * @param[in] value_ Value to place into the data section.
-             *
-             * @return Iterator pointing to the newly created session.
+             * @param[in] The session ID we are looking for.
+             * @return Shared pointer to session data. The pointer will evaluate
+             *         to false if the session does not actually exist.
              */
-            typename std::map<SessionId, T>::iterator generate(
-                    const T& value = T());
+            std::shared_ptr<const T> get(const SessionId& id) const;
+
+            //! How many active sessions are there?
+            size_t size() const
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                return m_sessions.size();
+            }
+
+            //! Generates a new session
+            /*!
+             * @param[in] data Data to store in the session.
+             *
+             * @return Constant reference to the newly created session ID.
+             */
+            const SessionId& generate(const std::shared_ptr<const T>& data);
+
+            //! Erase a session
+            /*!
+             * @param[in] The session we want to erase.
+             */
+            void erase(const SessionId& id)
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_sessions.erase(id);
+            }
         };
     }
-}
-
-template<class T> void Fastcgipp::Http::Sessions<T>::cleanup()
-{
-    const std::time_t now = std::time(nullptr);
-    if(now < m_cleanupTime)
-        return;
-
-    const std::time_t oldest(now-m_keepAlive);
-
-    auto session = this->begin();
-    while(session != this->end())
-    {
-        if(session->first.m_timestamp < oldest)
-            session = this->erase(session);
-        else
-            ++session;
-    }
-    m_cleanupTime = std::time(nullptr)+m_cleanupFrequency;
 }
 
 template<class In, class Out>
@@ -795,16 +795,54 @@ Out Fastcgipp::Http::base64Encode(In start, In end, Out destination)
     return destination;
 }
 
-template<class T>
-typename std::map<Fastcgipp::Http::SessionId, T>::iterator
-Fastcgipp::Http::Sessions<T>::generate(const T& value)
+template<class T> const Fastcgipp::Http::SessionId&
+Fastcgipp::Http::Sessions<T>::generate(const std::shared_ptr<const T>& data)
 {
-    std::pair<typename std::map<Fastcgipp::Http::SessionId, T>::iterator,bool>
+    std::lock_guard<std::mutex> lock(m_mutex);
+    std::pair<
+            typename std::map<SessionId, std::shared_ptr<const T>>::iterator,
+            bool>
         retVal;
     retVal.second=false;
     while(!retVal.second)
-        retVal=this->insert(std::pair<SessionId, T>(SessionId(), value));
-    return retVal.first;
+        retVal=m_sessions.insert(std::pair<SessionId, std::shared_ptr<const T>>(
+                    SessionId(),
+                    data));
+    return retVal.first->first;
+}
+
+template<class T> void Fastcgipp::Http::Sessions<T>::cleanup()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const std::time_t now = std::time(nullptr);
+    if(now < m_cleanupTime)
+        return;
+
+    const std::time_t oldest(now-m_keepAlive);
+
+    auto session = m_sessions.begin();
+    while(session != m_sessions.end())
+    {
+        if(session->first.m_timestamp < oldest)
+            session = m_sessions.erase(session);
+        else
+            ++session;
+    }
+    m_cleanupTime = std::time(nullptr)+m_cleanupFrequency;
+}
+
+template<class T> std::shared_ptr<const T>
+Fastcgipp::Http::Sessions<T>::get(const SessionId& id) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto session = m_sessions.find(id);
+    if(session == m_sessions.cend())
+        return std::shared_ptr<const T>();
+    else
+    {
+        session->first.refresh();
+        return session->second;
+    }
 }
 
 #endif

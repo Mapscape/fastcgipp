@@ -745,7 +745,7 @@ int main()
         Fastcgipp::Http::SessionId session1;
         std::ostringstream ss;
         ss << session1;
-        Fastcgipp::Http::SessionId session2(ss.str().data());
+        Fastcgipp::Http::SessionId session2(ss.str());
 
         if(!(session2 == session1))
             FAIL_LOG("Fastcgipp::Http::SessionId")
@@ -760,9 +760,9 @@ int main()
 
         for(int i=0; i<100; ++i)
         {
-            std::wstring data;
+            std::shared_ptr<std::wstring> data(new std::wstring);
             for(int i=0; i<16; ++i)
-                data.push_back(
+                data->push_back(
                         Fastcgipp::Http::base64Characters[
                             alphanumeric(device)]);
 
@@ -778,14 +778,14 @@ int main()
 
         for(int i=0; i<100; ++i)
         {
-            std::wstring data;
+            std::shared_ptr<std::wstring> data(new std::wstring);
             for(int i=0; i<16; ++i)
-                data.push_back(
+                data->push_back(
                         Fastcgipp::Http::base64Characters[
                             alphanumeric(device)]);
 
-            auto it = sessions.generate(data);
-            ss << it->first << ' ' << it->second << std::endl;
+            auto id = sessions.generate(data);
+            ss << id << ' ' << *data << std::endl;
         }
         if(sessions.size() != 200)
             FAIL_LOG("Fastcgipp::Http::Sessions error inserting more sessions");
@@ -794,26 +794,22 @@ int main()
         if(sessions.size() != 100)
             FAIL_LOG("Fastcgipp::Http::Sessions cleanup didn't work");
 
+        std::wstring sessionId;
         for(int i=0; i<100; ++i)
         {
             std::wstring data;
-            std::wstring sessionId_wchar;
-            std::string sessionId_char;
 
-            ss >> sessionId_wchar >> data;
-            sessionId_char.resize(sessionId_wchar.size());
-            std::copy(
-                    sessionId_wchar.begin(),
-                    sessionId_wchar.end(),
-                    sessionId_char.begin());
-            Fastcgipp::Http::SessionId sessionId(sessionId_char.data());
+            ss >> sessionId >> data;
 
-            auto it = sessions.find(sessionId);
-            if(it == sessions.end())
+            auto theData = sessions.get(sessionId);
+            if(!theData)
                 FAIL_LOG("Fastcgipp::Http::Sessions session(s) missing");
-            if(it->second != data)
+            if(*theData != data)
                 FAIL_LOG("Fastcgipp::Http::Sessions session data non matching");
         }
+        sessions.erase(sessionId);
+        if(sessions.size() != 99)
+            FAIL_LOG("Fastcgipp::Http::Sessions::erase() didn't work");
     }
 
     return 0;
