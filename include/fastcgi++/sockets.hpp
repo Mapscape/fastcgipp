@@ -37,6 +37,7 @@
 #include <memory>
 #include <map>
 #include <mutex>
+#include <set>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -252,14 +253,17 @@ namespace Fastcgipp
     class SocketGroup
     {
     public:
-        //! Constructor
+        SocketGroup();
+
+        //! Listen to a socket
         /*!
-         * Construct a SocketGroup object based on an initial socket identifier to
-         * listen on.
+         * Calling this simply adds the socket identifier to the polling group
+         * and the set of listening sockets.
          *
          * @param[in] listen Socket identifier to listen for connections on
+         * @return True on success. False on failure.
          */
-        SocketGroup(const socket_t& listen);
+        bool listen(const socket_t& listen);
 
         //! Poll socket set for new incoming connections and data.
         /*!
@@ -303,8 +307,8 @@ namespace Fastcgipp
         //! Our sockets need access to our private data
         friend class Socket;
 
-        //! This is the file descriptor we listen for connections on
-        const socket_t m_listen;
+        //! These are the sockets we listen for connections on
+        std::set<socket_t> m_listeners;
 
         //! Our poll object
         const poll_t m_poll;
@@ -322,7 +326,7 @@ namespace Fastcgipp
         std::map<socket_t, Socket> m_sockets;
 
         //! Accept a new connection and create it's socket
-        inline void createSocket();
+        inline void createSocket(const socket_t listener);
     };
 }
 

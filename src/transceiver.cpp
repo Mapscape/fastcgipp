@@ -154,9 +154,10 @@ Fastcgipp::Transceiver::Transceiver(
         const socket_t& socket,
         std::function<void(Protocol::RequestId, Message&&)> sendMessage):
     m_sendMessage(sendMessage),
-    m_sockets(socket),
     m_terminate(false)
-{}
+{
+    m_sockets.listen(socket);
+}
 
 void Fastcgipp::Transceiver::cleanupReceiveBuffers()
 {

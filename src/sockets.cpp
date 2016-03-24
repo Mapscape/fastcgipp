@@ -106,23 +106,36 @@ void Fastcgipp::Socket::close()
     }
 }
 
-Fastcgipp::SocketGroup::SocketGroup(const socket_t& listen):
-    m_listen(listen),
+Fastcgipp::SocketGroup::SocketGroup():
     m_poll(epoll_create1(0)),
     m_sleeping(false)
 {
-    epoll_event event;
-
-    // Add our listen socket into the epoll list
-    event.data.fd = m_listen;
-    event.events = EPOLLIN;
-    epoll_ctl(m_poll, EPOLL_CTL_ADD, m_listen, &event);
-
     // Add our wakeup socket into the epoll list
+    epoll_event event;
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
     event.data.fd = m_wakeSockets[1];
     event.events = EPOLLIN;
     epoll_ctl(m_poll, EPOLL_CTL_ADD, m_wakeSockets[1], &event);
+}
+
+bool Fastcgipp::SocketGroup::listen(const socket_t& listen)
+{
+    if(m_listeners.find(listen) == m_listeners.end())
+    {
+        ERROR_LOG("Tried adding a listen socket that is already added.")
+        return false;
+    }
+    else
+    {
+        m_listeners.insert(listen);
+
+        // Add our listen socket into the epoll list
+        epoll_event event;
+        event.data.fd = listen;
+        event.events = EPOLLIN;
+        epoll_ctl(m_poll, EPOLL_CTL_ADD, listen, &event);
+        return true;
+    }
 }
 
 Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
@@ -161,11 +174,11 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
         }
         else if(pollResult == 1)
         {
-            if(event.data.fd == m_listen)
+            if(m_listeners.find(event.data.fd) != m_listeners.end())
             {
                 if(event.events & EPOLLIN)
                 {
-                    createSocket();
+                    createSocket(event.data.fd);
                     continue;
                 }
                 else if(event.events & EPOLLERR)
@@ -248,17 +261,17 @@ void Fastcgipp::SocketGroup::wake()
     }
 }
 
-void Fastcgipp::SocketGroup::createSocket()
+void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
 {
     ::sockaddr_un addr;
     ::socklen_t addrlen=sizeof(sockaddr_un);
     const socket_t socket=::accept(
-            m_listen,
+            listener,
             (::sockaddr*)&addr,
             &addrlen);
     if(socket<0)
         FAIL_LOG("Error on accept() with fd " \
-                << m_listen << ": " \
+                << listener << ": " \
                 << std::strerror(errno))
     if(::fcntl(
             socket,
