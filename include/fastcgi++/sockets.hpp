@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 22, 2016
+ * @date       March 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -47,28 +47,28 @@ namespace Fastcgipp
     //! Our polling type in GNU/Linux is simply an int
     typedef int poll_t;
 
-    class Listener;
+    class SocketGroup;
 
     //! Class for representing an OS level I/O socket.
     /*!
-     * It works together with the Listener class to establish all the
+     * It works together with the SocketGroup class to establish all the
      * interfacing between the OS and the Transceiver class to communicate with
      * the outside world. The objects of this class represent individual
      * connections to the FastCGI server. They are consolidated and managed
-     * within the Listener class.
+     * within the SocketGroup class.
      *
      * <em>No non-const member functions are thread safe. This means you can
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    March 5, 2016
+     * @date    March 24, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
     {
     private:
-        //! Our respective Listener needs private access.
-        friend class Listener;
+        //! Our respective SocketGroup needs private access.
+        friend class SocketGroup;
 
         //! Data structure to hold the shared socket data.
         struct Data
@@ -79,15 +79,15 @@ namespace Fastcgipp
             //! Indicates whether or not the socket is dead/invalid.
             bool m_valid;
 
-            //! Listener object this socket is tied to.
-            Listener& m_listener;
+            //! SocketGroup object this socket is tied to.
+            SocketGroup& m_group;
 
             //! Sole constructor
             /*!
              * @param [inout] socket The OS level socket identifier to associate
              *                       with this.
-             * @param [inout] listener The Listener object that created and is
-             *                         consolidating this socket and it's peers.
+             * @param [inout] group The SocketGroup object that created and is
+             *                      consolidating this socket and it's peers.
              * @param [in] valid Set to false if this is a dead socket.
              *                   Sometimes it may be needed to create a socket
              *                   that is invalid off the start.
@@ -95,10 +95,10 @@ namespace Fastcgipp
             Data(
                     const socket_t& socket,
                     bool valid,
-                    Listener& listener):
+                    SocketGroup& group):
                 m_socket(socket),
                 m_valid(valid),
-                m_listener(listener)
+                m_group(group)
             {}
 
             Data() =delete;
@@ -113,21 +113,21 @@ namespace Fastcgipp
 
         //! Sole non-copy/move constructor
         /*!
-         * This constructor is only accessible to the Listener class to create
+         * This constructor is only accessible to the SocketGroup class to create
          * new "original" sockets as they are accepted. Only sockets created
          * with this constructor will have m_original set to true.
          *
          * @param [inout] socket The OS level socket identifier to associate
          *                       with this.
-         * @param [inout] listener The Listener object that created and is
-         *                         consolidating this socket and it's peers.
+         * @param [inout] group The SocketGroup object that created and is
+         *                      consolidating this socket and it's peers.
          * @param [in] valid Set to false if this is a dead socket. Sometimes it
          *                   may be needed to create a socket that is invalid
          *                   off the start.
          */
         Socket(
                 const socket_t& socket,
-                Listener& listener,
+                SocketGroup& group,
                 bool valid=true);
 
     public:
@@ -223,8 +223,8 @@ namespace Fastcgipp
         /*!
          * If the socket is valid, this will do the following:
          *  - Close/hangup the OS level socket.
-         *  - Remove the socket from the associated Listener polling set.
-         *  - Fully disassociate the socket with the Listener.
+         *  - Remove the socket from the associated SocketGroup polling set.
+         *  - Fully disassociate the socket with the SocketGroup.
          *  - Mark the socket as invalid.
          *
          * If the socket is already invalid, calling this does nothing.
@@ -246,20 +246,20 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    March 22, 2016
+     * @date    March 24, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
-    class Listener
+    class SocketGroup
     {
     public:
         //! Constructor
         /*!
-         * Construct a Listener object based on an initial socket identifier to
+         * Construct a SocketGroup object based on an initial socket identifier to
          * listen on.
          *
          * @param[in] listen Socket identifier to listen for connections on
          */
-        Listener(const socket_t& listen);
+        SocketGroup(const socket_t& listen);
 
         //! Poll socket set for new incoming connections and data.
         /*!

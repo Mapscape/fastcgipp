@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 22, 2016
+ * @date       March 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -41,19 +41,19 @@
 
 Fastcgipp::Socket::Socket(
         const socket_t& socket,
-        Listener& listener,
+        SocketGroup& group,
         bool valid):
-    m_data(new Data(socket, valid, listener)),
+    m_data(new Data(socket, valid, group)),
     m_original(true)
 {
     epoll_event event;
 
     event.data.fd = socket;
     event.events = EPOLLIN;
-    if(epoll_ctl(listener.m_poll, EPOLL_CTL_ADD, socket, &event) != 0)
+    if(epoll_ctl(group.m_poll, EPOLL_CTL_ADD, socket, &event) != 0)
     {
         WARNING_LOG("Error adding fd " << socket << " to epfd " \
-                << listener.m_poll << " using epoll_ctl(): " \
+                << group.m_poll << " using epoll_ctl(): " \
                 << std::strerror(errno))
         close();
     }
@@ -98,15 +98,15 @@ void Fastcgipp::Socket::close()
         ::close(m_data->m_socket);
         m_data->m_valid = false;
         ::epoll_ctl(
-                m_data->m_listener.m_poll,
+                m_data->m_group.m_poll,
                 EPOLL_CTL_DEL,
                 m_data->m_socket,
                 nullptr);
-        m_data->m_listener.m_sockets.erase(m_data->m_socket);
+        m_data->m_group.m_sockets.erase(m_data->m_socket);
     }
 }
 
-Fastcgipp::Listener::Listener(const socket_t& listen):
+Fastcgipp::SocketGroup::SocketGroup(const socket_t& listen):
     m_listen(listen),
     m_poll(epoll_create1(0)),
     m_sleeping(false)
@@ -125,7 +125,7 @@ Fastcgipp::Listener::Listener(const socket_t& listen):
     epoll_ctl(m_poll, EPOLL_CTL_ADD, m_wakeSockets[1], &event);
 }
 
-Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
+Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 {
     int pollResult;
     epoll_event event;
@@ -235,7 +235,7 @@ Fastcgipp::Socket Fastcgipp::Listener::poll(bool block)
     }
 }
 
-void Fastcgipp::Listener::wake()
+void Fastcgipp::SocketGroup::wake()
 {
     std::unique_lock<std::mutex> lock(m_sleepingMutex);
     if(m_sleeping)
@@ -248,7 +248,7 @@ void Fastcgipp::Listener::wake()
     }
 }
 
-void Fastcgipp::Listener::createSocket()
+void Fastcgipp::SocketGroup::createSocket()
 {
     ::sockaddr_un addr;
     ::socklen_t addrlen=sizeof(sockaddr_un);
@@ -279,6 +279,6 @@ void Fastcgipp::Listener::createSocket()
 }
 
 Fastcgipp::Socket::Socket():
-    m_data(new Data(-1, false, *(Listener*)(nullptr))),
+    m_data(new Data(-1, false, *(SocketGroup*)(nullptr))),
     m_original(false)
 {}

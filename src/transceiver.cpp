@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       March 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -94,7 +94,7 @@ void Fastcgipp::Transceiver::handler()
         lock.unlock();
 
         transmit();
-        Socket socket = m_listener.poll(true);
+        Socket socket = m_sockets.poll(true);
         receive(socket);
         cleanupReceiveBuffers();
 
@@ -106,7 +106,7 @@ void Fastcgipp::Transceiver::terminate()
 {
     std::unique_lock<std::mutex> lock(m_terminateMutex);
     m_terminate=true;
-    m_listener.wake();
+    m_sockets.wake();
     m_terminateCV.wait(lock);
 }
 
@@ -154,7 +154,7 @@ Fastcgipp::Transceiver::Transceiver(
         const socket_t& socket,
         std::function<void(Protocol::RequestId, Message&&)> sendMessage):
     m_sendMessage(sendMessage),
-    m_listener(socket),
+    m_sockets(socket),
     m_terminate(false)
 {}
 
