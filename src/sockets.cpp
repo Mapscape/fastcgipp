@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 24, 2016
+ * @date       March 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -35,6 +35,7 @@
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <cstring>
@@ -118,8 +119,10 @@ Fastcgipp::SocketGroup::SocketGroup():
     epoll_ctl(m_poll, EPOLL_CTL_ADD, m_wakeSockets[1], &event);
 }
 
-bool Fastcgipp::SocketGroup::listen(const socket_t& listen)
+bool Fastcgipp::SocketGroup::listen()
 {
+    const int listen=0;
+
     if(m_listeners.find(listen) == m_listeners.end())
     {
         ERROR_LOG("Tried adding a listen socket that is already added.")
@@ -136,6 +139,38 @@ bool Fastcgipp::SocketGroup::listen(const socket_t& listen)
         epoll_ctl(m_poll, EPOLL_CTL_ADD, listen, &event);
         return true;
     }
+}
+
+bool Fastcgipp::SocketGroup::listen(const char* name)
+{
+    std::remove(name);
+    const auto fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+    struct sockaddr_un address;
+    std::memset(&address, 0, sizeof(address));
+    address.sun_family = AF_UNIX;
+    std::strncpy(address.sun_path, name, sizeof(address.sun_path) - 1);
+
+    if(bind(fd, (struct sockaddr*)&address, sizeof(address)) < 0)
+    {
+        ERROR_LOG("Unable to bind to unix socket " << name);
+        return false;
+    }
+    if(::listen(fd, 100) < 0)
+    {
+        ERROR_LOG("Unable to listen on unix socket " << name);
+        return false;
+    }
+
+    m_listeners.insert(fd);
+
+    // Add our socket into the epoll list
+    epoll_event event;
+    event.data.fd = fd;
+    event.events = EPOLLIN;
+    epoll_ctl(m_poll, EPOLL_CTL_ADD, fd, &event);
+
+    return true;
 }
 
 Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
