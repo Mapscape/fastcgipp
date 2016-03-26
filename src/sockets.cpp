@@ -195,7 +195,7 @@ bool Fastcgipp::SocketGroup::listen(
 	}
 
     // Set the user and group of the socket
-    if(permissions != ~uint32_t(0))
+    if(permissions != 0xffffffffUL)
     {
         if(fchmod(fd, permissions)<0)
         {

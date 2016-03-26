@@ -274,7 +274,7 @@ namespace Fastcgipp
          * @param [in] name Name of socket (path in Unix world).
          * @param [in] permissions Permissions of socket. If you do not wish to
          *                         set the permissions, leave it as it's default
-         *                         value ~uint32_t(0).
+         *                         value of 0xffffffffUL.
          * @param [in] owner Owner (username) of socket. Leave as nullptr if you
          *                   do not wish to set it.
          * @param [in] group Group (group name) of socket. Leave as nullptr if
@@ -283,7 +283,7 @@ namespace Fastcgipp
          */
         bool listen(
                 const char* name,
-                uint32_t permissions = ~uint32_t(0),
+                uint32_t permissions = 0xffffffffUL,
                 const char* owner = nullptr,
                 const char* group = nullptr);
 
