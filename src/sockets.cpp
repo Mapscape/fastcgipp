@@ -195,13 +195,16 @@ bool Fastcgipp::SocketGroup::listen(
 	}
 
     // Set the user and group of the socket
-    if(fchmod(fd, permissions)<0)
+    if(permissions != ~uint32_t(0))
     {
-        ERROR_LOG("Unable to set permissions 0" << std::oct << permissions \
-                << std::dec << " on \"" << name << "\": " \
-                << std::strerror(errno));
-        close(fd);
-        return false;
+        if(fchmod(fd, permissions)<0)
+        {
+            ERROR_LOG("Unable to set permissions 0" << std::oct << permissions \
+                    << std::dec << " on \"" << name << "\": " \
+                    << std::strerror(errno));
+            close(fd);
+            return false;
+        }
     }
 
     if(::listen(fd, 100) < 0)
