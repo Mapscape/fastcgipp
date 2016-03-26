@@ -2,7 +2,7 @@
  * @file       http.hpp
  * @brief      Declares elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 24, 2016
+ * @date       March 26, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -144,7 +144,7 @@ namespace Fastcgipp
          * for netmask calculation. It detects when an IPv4 address is stored
          * outputs it accordingly.
          *
-         * @date    March 16, 2016
+         * @date    March 26, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         class Address
@@ -158,7 +158,7 @@ namespace Fastcgipp
 
             //! Assign the IPv6 address from a data array
             /*!
-             * @param[in] data_ Pointer to a 16 byte array
+             * @param[in] data Pointer to a 16 byte array
              */
             Address operator=(const unsigned char* data)
             {
@@ -191,7 +191,7 @@ namespace Fastcgipp
 
             //! Construct the IPv6 address from a data array
             /*!
-             * @param[in] data_ Pointer to a 16 byte array
+             * @param[in] data Pointer to a 16 byte array
              */
             explicit Address(const unsigned char* data)
             {
@@ -454,6 +454,7 @@ namespace Fastcgipp
          * @param[in] start Pointer to the first byte in the string
          * @param[in] end Pointer to the last byte in the string + 1
          * @return Integer value represented by the string
+         * @tparam charT Character type
          */
         template<class charT> int atoi(const charT* start, const charT* end);
 
@@ -581,7 +582,7 @@ namespace Fastcgipp
              * Note that only stringLength characeters will be read from the
              * string.
              *
-             * @param data Reference to base64 encoded string
+             * @param[in] string Reference to base64 encoded string
              */
             template<class charT>
             SessionId(const std::basic_string<charT>& string);
@@ -685,7 +686,7 @@ namespace Fastcgipp
 
             //! Get session data from session ID
             /*!
-             * @param[in] The session ID we are looking for.
+             * @param[in] id The session ID we are looking for.
              * @return Shared pointer to session data. The pointer will evaluate
              *         to false if the session does not actually exist.
              */
@@ -708,7 +709,7 @@ namespace Fastcgipp
 
             //! Erase a session
             /*!
-             * @param[in] The session we want to erase.
+             * @param[in] id The session we want to erase.
              */
             void erase(const SessionId& id)
             {
