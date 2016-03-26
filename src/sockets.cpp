@@ -52,7 +52,7 @@ Fastcgipp::Socket::Socket(
 {
     if(!group.pollAdd(socket))
     {
-        ERROR_LOG("Error adding socket " << socket << " to poll list: " \
+        ERROR_LOG("Unable to add socket " << socket << " to poll list: " \
                 << std::strerror(errno))
         close();
     }
@@ -127,7 +127,7 @@ bool Fastcgipp::SocketGroup::listen()
     {
         if(!pollAdd(listen))
         {
-            ERROR_LOG("Error adding listen socket " << listen \
+            ERROR_LOG("Unable to add listen socket " << listen \
                     << " to the poll list: " << std::strerror(errno))
             return false;
         }
@@ -271,7 +271,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 }
                 else if(event.events & EPOLLHUP)
                 {
-                    FAIL_LOG("Error: the listen socket hung up.")
+                    FAIL_LOG("The listen socket hung up.")
                 }
             }
             else if(event.data.fd == m_wakeSockets[1])
@@ -280,13 +280,14 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 {
                     char x[256];
                     if(read(m_wakeSockets[1], x, 256)<1)
-                        FAIL_LOG("Error: couldn't read out of wakeup socket")
+                        FAIL_LOG("Unable to read out of wakeup socket: " << \
+                                std::strerror(errno))
                     block=false;
                     continue;
                 }
                 else if(event.events & EPOLLHUP)
                 {
-                    FAIL_LOG("Error: the wakeup socket hung up.")
+                    FAIL_LOG("The wakeup socket hung up.")
                 }
                 else if(event.events & EPOLLERR)
                 {
@@ -311,13 +312,13 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 }
                 else if(event.events & EPOLLERR)
                 {
-                    ERROR_LOG("Error in socket" << event.data.fd << ".")
+                    ERROR_LOG("Error in socket" << event.data.fd)
                     m_sockets.erase(event.data.fd);
                     continue;
                 }
                 else if(event.events & EPOLLHUP)
                 {
-                    WARNING_LOG("Socket " << event.data.fd << " hung up.")
+                    WARNING_LOG("Socket " << event.data.fd << " hung up")
                     m_sockets.erase(event.data.fd);
                     continue;
                 }
@@ -337,7 +338,8 @@ void Fastcgipp::SocketGroup::wake()
         lock.unlock();
         char x=0;
         if(write(m_wakeSockets[0], &x, 1) != 1)
-            FAIL_LOG("Error: couldn't write to wakeup socket")
+            FAIL_LOG("Unable to write to wakeup socket: " \
+                    << std::strerror(errno))
     }
 }
 
@@ -350,7 +352,7 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
             (::sockaddr*)&addr,
             &addrlen);
     if(socket<0)
-        FAIL_LOG("Error on accept() with fd " \
+        FAIL_LOG("Unable to accept() with fd " \
                 << listener << ": " \
                 << std::strerror(errno))
     if(::fcntl(
@@ -359,7 +361,7 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
             (::fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK)
             < 0)
     {
-        WARNING_LOG("Error setting NONBLOCK on fd " << socket \
+        WARNING_LOG("Unable to set NONBLOCK on fd " << socket \
                 << " with fcntl(): " << std::strerror(errno))
         ::close(socket);
         return;
