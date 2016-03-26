@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 25, 2016
+ * @date       March 26, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -36,8 +36,11 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <pwd.h>
+#include <grp.h>
 #include <cstring>
 
 Fastcgipp::Socket::Socket(
@@ -47,14 +50,9 @@ Fastcgipp::Socket::Socket(
     m_data(new Data(socket, valid, group)),
     m_original(true)
 {
-    epoll_event event;
-
-    event.data.fd = socket;
-    event.events = EPOLLIN;
-    if(epoll_ctl(group.m_poll, EPOLL_CTL_ADD, socket, &event) != 0)
+    if(!group.pollAdd(socket))
     {
-        WARNING_LOG("Error adding fd " << socket << " to epfd " \
-                << group.m_poll << " using epoll_ctl(): " \
+        ERROR_LOG("Error adding socket " << socket << " to poll list: " \
                 << std::strerror(errno))
         close();
     }
@@ -98,11 +96,7 @@ void Fastcgipp::Socket::close()
     {
         ::close(m_data->m_socket);
         m_data->m_valid = false;
-        ::epoll_ctl(
-                m_data->m_group.m_poll,
-                EPOLL_CTL_DEL,
-                m_data->m_socket,
-                nullptr);
+        m_data->m_group.pollDel(m_data->m_socket);
         m_data->m_group.m_sockets.erase(m_data->m_socket);
     }
 }
@@ -112,11 +106,17 @@ Fastcgipp::SocketGroup::SocketGroup():
     m_sleeping(false)
 {
     // Add our wakeup socket into the epoll list
-    epoll_event event;
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
-    event.data.fd = m_wakeSockets[1];
-    event.events = EPOLLIN;
-    epoll_ctl(m_poll, EPOLL_CTL_ADD, m_wakeSockets[1], &event);
+    pollAdd(m_wakeSockets[1]);
+}
+
+Fastcgipp::SocketGroup::~SocketGroup()
+{
+    close(m_poll);
+    close(m_wakeSockets[0]);
+    close(m_wakeSockets[1]);
+    for(const auto& listener: m_listeners)
+        close(listener);
 }
 
 bool Fastcgipp::SocketGroup::listen()
@@ -125,26 +125,42 @@ bool Fastcgipp::SocketGroup::listen()
 
     if(m_listeners.find(listen) == m_listeners.end())
     {
-        ERROR_LOG("Tried adding a listen socket that is already added.")
-        return false;
+        if(!pollAdd(listen))
+        {
+            ERROR_LOG("Error adding listen socket " << listen \
+                    << " to the poll list: " << std::strerror(errno))
+            return false;
+        }
+        m_listeners.insert(listen);
+        return true;
     }
     else
     {
-        m_listeners.insert(listen);
-
-        // Add our listen socket into the epoll list
-        epoll_event event;
-        event.data.fd = listen;
-        event.events = EPOLLIN;
-        epoll_ctl(m_poll, EPOLL_CTL_ADD, listen, &event);
-        return true;
+        ERROR_LOG("Socket " << listen << " already being listened to")
+        return false;
     }
 }
 
-bool Fastcgipp::SocketGroup::listen(const char* name)
+bool Fastcgipp::SocketGroup::listen(
+        const char* name,
+        uint32_t permissions,
+        const char* owner,
+        const char* group)
 {
-    std::remove(name);
+    if(std::remove(name) != 0 && errno != ENOENT)
+    {
+        ERROR_LOG("Unable to delete file \"" << name << "\": " \
+                << std::strerror(errno))
+        return false;
+    }
+
     const auto fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if(fd == -1)
+    {
+        ERROR_LOG("Unable to create unix socket: " << std::strerror(errno))
+        return false;
+
+    }
 
     struct sockaddr_un address;
     std::memset(&address, 0, sizeof(address));
@@ -153,23 +169,56 @@ bool Fastcgipp::SocketGroup::listen(const char* name)
 
     if(bind(fd, (struct sockaddr*)&address, sizeof(address)) < 0)
     {
-        ERROR_LOG("Unable to bind to unix socket " << name);
+        ERROR_LOG("Unable to bind to unix socket \"" << name << "\": " \
+                << std::strerror(errno));
+        close(fd);
+        std::remove(name);
         return false;
     }
+    unlink(name);
+
+	// Set the user and group of the socket
+    if(owner!=nullptr && group!=nullptr)
+	{
+		struct passwd* passwd = getpwnam(owner);
+        struct group* grp = getgrnam(group);
+        if(fchown(fd, passwd->pw_uid, grp->gr_gid)==-1)
+        {
+			ERROR_LOG("Unable to chown " << owner << ":" << group \
+                    << " on the unix socket \"" << name << "\": " \
+                    << std::strerror(errno));
+            close(fd);
+            return false;
+		}
+	}
+
+    // Set the user and group of the socket
+    if(fchmod(fd, permissions)<0)
+    {
+        ERROR_LOG("Unable to set permissions 0" << std::oct << permissions \
+                << std::dec << " on \"" << name << "\": " \
+                << std::strerror(errno));
+        close(fd);
+        return false;
+    }
+
     if(::listen(fd, 100) < 0)
     {
-        ERROR_LOG("Unable to listen on unix socket " << name);
+        ERROR_LOG("Unable to listen on unix socket :\"" << name << "\": "\
+                << std::strerror(errno));
+        close(fd);
+        return false;
+    }
+
+    if(!pollAdd(fd))
+    {
+        ERROR_LOG("Unable to add unix socket " << fd << " to poll list: "\
+                << std::strerror(errno));
+        close(fd);
         return false;
     }
 
     m_listeners.insert(fd);
-
-    // Add our socket into the epoll list
-    epoll_event event;
-    event.data.fd = fd;
-    event.events = EPOLLIN;
-    epoll_ctl(m_poll, EPOLL_CTL_ADD, fd, &event);
-
     return true;
 }
 
@@ -251,13 +300,9 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                     const auto socket = m_sockets.find(event.data.fd);
                     if(socket == m_sockets.end())
                     {
-                        WARNING_LOG("Epoll gave fd " << event.data.fd \
+                        ERROR_LOG("Epoll gave fd " << event.data.fd \
                                 << " which isn't in m_sockets.")
-                        ::epoll_ctl(
-                                m_poll,
-                                EPOLL_CTL_DEL,
-                                event.data.fd,
-                                nullptr);
+                        pollDel(event.data.fd);
                         ::close(event.data.fd);
                         continue;
                     }
@@ -266,7 +311,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 }
                 else if(event.events & EPOLLERR)
                 {
-                    WARNING_LOG("Error in socket" << event.data.fd << ".")
+                    ERROR_LOG("Error in socket" << event.data.fd << ".")
                     m_sockets.erase(event.data.fd);
                     continue;
                 }
@@ -330,3 +375,16 @@ Fastcgipp::Socket::Socket():
     m_data(new Data(-1, false, *(SocketGroup*)(nullptr))),
     m_original(false)
 {}
+
+bool Fastcgipp::SocketGroup::pollAdd(const socket_t socket)
+{
+    epoll_event event;
+    event.data.fd = socket;
+    event.events = EPOLLIN;
+    return epoll_ctl(m_poll, EPOLL_CTL_ADD, socket, &event) != -1;
+}
+
+bool Fastcgipp::SocketGroup::pollDel(const socket_t socket)
+{
+    return epoll_ctl(m_poll, EPOLL_CTL_DEL, socket, nullptr) != -1;
+}

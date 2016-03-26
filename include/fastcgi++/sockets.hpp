@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 25, 2016
+ * @date       March 26, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -62,7 +62,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    March 24, 2016
+     * @date    March 26, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -247,13 +247,15 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    March 25, 2016
+     * @date    March 26, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup
     {
     public:
         SocketGroup();
+
+        ~SocketGroup();
 
         //! Listen to the default Fastcgi socket
         /*!
@@ -269,10 +271,19 @@ namespace Fastcgipp
          * Listen on a named socket. In the Unix world this would be a path. In
          * the Windows world I have no idea what this would be.
          *
-         * @param [in] Name of socket (path in Unix world).
+         * @param [in] name Name of socket (path in Unix world).
+         * @param [in] permissions Permissions of socket.
+         * @param [in] owner Owner (username) of socket. Set this to nullptr if
+         *                   you do not wish to set it.
+         * @param [in] group Group (group name) of socket. Set this to nullptr
+         *                   if you do not wish to set it.
          * @return True on success. False on failure.
          */
-        bool listen(const char* name);
+        bool listen(
+                const char* name,
+                uint32_t permissions,
+                const char* owner,
+                const char* group);
 
         //! Poll socket set for new incoming connections and data.
         /*!
@@ -336,6 +347,12 @@ namespace Fastcgipp
 
         //! Accept a new connection and create it's socket
         inline void createSocket(const socket_t listener);
+
+        //! Add a socket identifier to the poll list
+        bool pollAdd(const socket_t socket);
+
+        //! Remove a socket identifier to the poll list
+        bool pollDel(const socket_t socket);
     };
 }
 
