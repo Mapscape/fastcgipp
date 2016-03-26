@@ -273,17 +273,17 @@ namespace Fastcgipp
          *
          * @param [in] name Name of socket (path in Unix world).
          * @param [in] permissions Permissions of socket.
-         * @param [in] owner Owner (username) of socket. Set this to nullptr if
+         * @param [in] owner Owner (username) of socket. Leave as nullptr if you
+         *                   do not wish to set it.
+         * @param [in] group Group (group name) of socket. Leave as nullptr if
          *                   you do not wish to set it.
-         * @param [in] group Group (group name) of socket. Set this to nullptr
-         *                   if you do not wish to set it.
          * @return True on success. False on failure.
          */
         bool listen(
                 const char* name,
                 uint32_t permissions,
-                const char* owner,
-                const char* group);
+                const char* owner = nullptr,
+                const char* group = nullptr);
 
         //! Listen to a TCP port
         /*!
@@ -300,6 +300,18 @@ namespace Fastcgipp
         bool listen(
                 const char* interface,
                 const char* service);
+
+        //! Connect to a named socket
+        /*!
+         * Connect to a named socket. In the Unix world this would be a path.
+         * In the Windows world I have no idea what this would be.
+         *
+         * @param [in] name Name of socket (path in Unix world).
+         * @return Socket associated with the new connection. If the connection
+         *         failed, you'll get an invalid socket (it will evaluate to
+         *         false).
+         */
+        Socket connect(const char* name);
 
         //! Poll socket set for new incoming connections and data.
         /*!

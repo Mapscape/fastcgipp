@@ -289,6 +289,33 @@ bool Fastcgipp::SocketGroup::listen(
     return true;
 }
 
+Fastcgipp::Socket Fastcgipp::SocketGroup::connect(const char* name)
+{
+    const auto fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if(fd == -1)
+    {
+        ERROR_LOG("Unable to create unix socket: " << std::strerror(errno))
+        return Socket();
+    }
+
+    sockaddr_un address;
+    std::memset(&address, 0, sizeof(address));
+    address.sun_family = AF_UNIX;
+    std::strncpy(address.sun_path, name, sizeof(address.sun_path) - 1);
+
+    if(::connect(fd, (struct sockaddr*)&address, sizeof(address))==-1)
+    {
+        ERROR_LOG("Unable to connect to unix socket \"" << name << "\": " \
+                << std::strerror(errno));
+        close(fd);
+        return Socket();
+    }
+
+    return m_sockets.emplace(
+            fd,
+            std::move(Socket(fd, *this))).first->second;
+}
+
 Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 {
     int pollResult;
@@ -428,7 +455,7 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
             (::fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK)
             < 0)
     {
-        WARNING_LOG("Unable to set NONBLOCK on fd " << socket \
+        ERROR_LOG("Unable to set NONBLOCK on fd " << socket \
                 << " with fcntl(): " << std::strerror(errno))
         ::close(socket);
         return;
