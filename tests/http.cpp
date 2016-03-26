@@ -19,22 +19,8 @@ int main()
     {
         const unsigned char randomAddress1Data[Fastcgipp::Http::Address::size] =
         {
-            0xcc,
-            0x22,
-            0x40,
-            0x08,
-            0x79,
-            0xa1,
-            0xc1,
-            0x78,
-            0x05,
-            0xc5,
-            0x88,
-            0x2a,
-            0x19,
-            0x0d,
-            0x7f,
-            0xbf
+            0xcc, 0x22, 0x40, 0x08, 0x79, 0xa1, 0xc1, 0x78, 0x05, 0xc5, 0x88,
+            0x2a, 0x19, 0x0d, 0x7f, 0xbf
         };
         const char randomAddress1String[] = 
             "cc22:4008:79a1:c178:5c5:882a:190d:7fbf";
@@ -42,45 +28,16 @@ int main()
 
         const unsigned char randomAddress2Data[Fastcgipp::Http::Address::size] =
         {
-            0xce,
-            0x9c,
-            0x51,
-            0x16,
-            0x78,
-            0x17,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x8d,
-            0x97,
-            0x00,
-            0x00,
-            0xe7,
-            0x55
+            0xce, 0x9c, 0x51, 0x16, 0x78, 0x17, 0x00, 0x00, 0x00, 0x00, 0x8d,
+            0x97, 0x00, 0x00, 0xe7, 0x55
         };
-        const char randomAddress2String[] =
-            "ce9c:5116:7817::8d97:0:e755";
+        const char randomAddress2String[] = "ce9c:5116:7817::8d97:0:e755";
         const Fastcgipp::Http::Address randomAddress2(randomAddress2Data);
 
         const unsigned char ipv4AddressData[Fastcgipp::Http::Address::size] =            
         {
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0x00,
-            0xff,
-            0xff,
-            0xb3,
-            0x7c,
-            0x83,
-            0x91
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff,
+            0xff, 0xb3, 0x7c, 0x83, 0x91
         };
         const char ipv4AddressStringNew[] = "::ffff:179.124.131.145";
         const char ipv4AddressStringOld[] = "179.124.131.145";
@@ -460,17 +417,6 @@ int main()
             "&unicode=%D0%B6%D0%B8%D0%B2%D0%BE%D1%82%D0%BD%D0%BE%D0%B5"
             "&unicode=%E3%82%A4%E3%83%B3%E3%82%BF%E3%83%BC%E3%83%8D%E3%83%83%E3%83%88";
 
-        const wchar_t unicode1[] =
-        {
-            0x0436, 0x0438, 0x0432, 0x043E, 0x0442, 0x043D, 0x043E, 0x0435, 0
-        };
-
-        const wchar_t unicode2[] = 
-        {
-            0x30A4, 0x30F3, 0x30BF, 0x30FC, 0x30CD, 0x30C3, 0x30C8, 0
-        };
-
-
         std::multimap<std::wstring, std::wstring> properOutput;
         properOutput.insert(std::pair<std::wstring, std::wstring>(
                     L"&8c2LuPm",
@@ -480,10 +426,10 @@ int main()
                     L"!Llm_0-4Eo-KlIyL"));
         properOutput.insert(std::pair<std::wstring, std::wstring>(
                     L"unicode",
-                    unicode1));
+                    L"животное"));
         properOutput.insert(std::pair<std::wstring, std::wstring>(
                     L"unicode",
-                    unicode2));
+                    L"インターネット"));
 
         std::multimap<std::wstring, std::wstring> output;
         Fastcgipp::Http::decodeUrlEncoded(input, input+sizeof(input)-1, output);
@@ -507,10 +453,6 @@ int main()
 
         std::multimap<std::wstring, std::wstring> properGets;
         {
-            const wchar_t utf8GetVarTest[] = 
-            {
-                0x043F, 0x0440, 0x043E, 0x0432, 0x0435, 0x0440, 0x043A, 0x0430, 0
-            };
             properGets.insert(std::pair<std::wstring, std::wstring>(
                         L"enctype",
                         L"multipart"));
@@ -522,41 +464,24 @@ int main()
                         L"tested"));
             properGets.insert(std::pair<std::wstring, std::wstring>(
                         L"utf8GetVarTest",
-                        utf8GetVarTest));
+                        L"проверка"));
         }
 
         std::multimap<std::wstring, std::wstring> properPosts;
         {
-            const wchar_t utf8Name[] = 
-            {
-                0x002B, 0x003D, 0x0020, 0x0061, 0x0071, 0x0075, 0x00ED, 0x0020,
-                0x0065, 0x0073, 0x0074, 0x00E1, 0x0020, 0x0065, 0x006C, 0x0020,
-                0x0063, 0x0061, 0x006D, 0x0070, 0x006F, 0x0
-            };
-            const wchar_t utf8Value[] =
-            {
-                0x00C9, 0x006C, 0x0020, 0x0065, 0x0073, 0x0074, 0x00E1, 0x0020,
-                0x0063, 0x006F, 0x006E, 0x0020, 0x0075, 0x006E, 0x0020, 0x006E,
-                0x0069, 0x00F1, 0x006F, 0x0
-            };
             properPosts.insert(std::pair<std::wstring, std::wstring>(
                         L"submit",
                         L"submit"));
             properPosts.insert(std::pair<std::wstring, std::wstring>(
-                        utf8Name,
-                        utf8Value));
+                        L"+= aquí está el campo",
+                        L"Él está con un niño"));
         }
 
         std::multimap<std::wstring, std::wstring> properCookies;
         {
-            const wchar_t value[] =
-            {
-                0x003C, 0x0022, 0x0440, 0x0443, 0x0441, 0x0441, 0x043A, 0x0438,
-                0x0439, 0x0022, 0x003E, 0x003B, 0
-            };
             properCookies.insert(std::pair<std::wstring, std::wstring>(
                         L"echoCookie",
-                        value));
+                        L"<\"русский\">;"));
         }
 
         // Doing test with multipart POST
