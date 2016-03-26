@@ -316,6 +316,65 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::connect(const char* name)
             std::move(Socket(fd, *this))).first->second;
 }
 
+Fastcgipp::Socket Fastcgipp::SocketGroup::connect(
+        const char* host,
+        const char* service)
+{
+    if(service == nullptr)
+    {
+        ERROR_LOG("Cannot call connect(host, service) with service=nullptr.")
+        return Socket();
+    }
+
+    if(host == nullptr)
+    {
+        ERROR_LOG("Cannot call host(host, service) with host=nullptr.")
+        return Socket();
+    }
+
+    addrinfo hints;
+    std::memset(&hints, 0, sizeof(addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = 0;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_canonname = nullptr;
+    hints.ai_addr = nullptr;
+    hints.ai_next = nullptr;
+
+    addrinfo* result;
+
+    if(getaddrinfo(host, service, &hints, &result))
+    {
+        ERROR_LOG("Unable to use getaddrinfo() on " << host << ":" << service  \
+                << ". " << std::strerror(errno))
+        return Socket();
+    }
+
+    int fd=-1;
+    for(auto i=result; i!=nullptr; i=result->ai_next)
+    {
+        fd = socket(i->ai_family, i->ai_socktype, i->ai_protocol);
+        if(fd == -1)
+            continue;
+        if(::connect(fd, i->ai_addr, i->ai_addrlen) == -1)
+            break;
+        close(fd);
+        fd = -1;
+    }
+    freeaddrinfo(result);
+
+    if(fd==-1)
+    {
+        ERROR_LOG("Unable to connect to " << host << ":" << service)
+        return Socket();
+    }
+
+    return m_sockets.emplace(
+            fd,
+            std::move(Socket(fd, *this))).first->second;
+}
+
 Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 {
     int pollResult;

@@ -313,6 +313,21 @@ namespace Fastcgipp
          */
         Socket connect(const char* name);
 
+        //! Connect to a host on a TCP port/serivce
+        /*!
+         * @param [in] host Host to connect to. This could be an IP address
+         *                       address or a hostname.
+         * @param [in] service Port or service to connect to. This could be a
+         *                     service name, or a string representation of a
+         *                     port number.
+         * @return Socket associated with the new connection. If the connection
+         *         failed, you'll get an invalid socket (it will evaluate to
+         *         false).
+         */
+        Socket connect(
+                const char* host,
+                const char* service);
+
         //! Poll socket set for new incoming connections and data.
         /*!
          * Calling this will initiate a poll for both new connections and new
