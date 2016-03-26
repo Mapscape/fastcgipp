@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 24, 2016
+ * @date       March 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -247,7 +247,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    March 24, 2016
+     * @date    March 25, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup
@@ -255,15 +255,24 @@ namespace Fastcgipp
     public:
         SocketGroup();
 
-        //! Listen to a socket
+        //! Listen to the default Fastcgi socket
         /*!
-         * Calling this simply adds the socket identifier to the polling group
-         * and the set of listening sockets.
+         * Calling this simply adds the default socket used on FastCGI
+         * applications that are initialized from HTTP servers.
          *
-         * @param[in] listen Socket identifier to listen for connections on
          * @return True on success. False on failure.
          */
-        bool listen(const socket_t& listen);
+        bool listen();
+
+        //! Listen to a named socket
+        /*!
+         * Listen on a named socket. In the Unix world this would be a path. In
+         * the Windows world I have no idea what this would be.
+         *
+         * @param [in] Name of socket (path in Unix world).
+         * @return True on success. False on failure.
+         */
+        bool listen(const char* name);
 
         //! Poll socket set for new incoming connections and data.
         /*!
