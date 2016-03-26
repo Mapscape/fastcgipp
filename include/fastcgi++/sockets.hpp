@@ -285,6 +285,22 @@ namespace Fastcgipp
                 const char* owner,
                 const char* group);
 
+        //! Listen to a TCP port
+        /*!
+         * Listen on a specific interface and TCP port.
+         *
+         * @param [in] interface Interface to listen on. This could be an IP
+         *                       address or a hostname. If you don't want to
+         *                       specify the interface, pass nullptr.
+         * @param [in] service Port or service to listen on. This could be a
+         *                     service name, or a string representation of a
+         *                     port number.
+         * @return True on success. False on failure.
+         */
+        bool listen(
+                const char* interface,
+                const char* service);
+
         //! Poll socket set for new incoming connections and data.
         /*!
          * Calling this will initiate a poll for both new connections and new

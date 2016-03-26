@@ -37,6 +37,8 @@
 #include <sys/un.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <pwd.h>
@@ -214,6 +216,71 @@ bool Fastcgipp::SocketGroup::listen(
     {
         ERROR_LOG("Unable to add unix socket " << fd << " to poll list: "\
                 << std::strerror(errno));
+        close(fd);
+        return false;
+    }
+
+    m_listeners.insert(fd);
+    return true;
+}
+
+bool Fastcgipp::SocketGroup::listen(
+        const char* interface,
+        const char* service)
+{
+    if(service == nullptr)
+    {
+        ERROR_LOG("Cannot call listen(interface, service) with service=nullptr.")
+        return false;
+    }
+
+    addrinfo hints;
+    std::memset(&hints, 0, sizeof(addrinfo));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_canonname = nullptr;
+    hints.ai_addr = nullptr;
+    hints.ai_next = nullptr;
+
+    addrinfo* result;
+
+    if(getaddrinfo(interface, service, &hints, &result))
+    {
+        ERROR_LOG("Unable to use getaddrinfo() on " \
+                << (interface==nullptr?"0.0.0.0":interface) << ":" << service << ". " \
+                << std::strerror(errno))
+        return false;
+    }
+
+    int fd=-1;
+    for(auto i=result; i!=nullptr; i=result->ai_next)
+    {
+        fd = socket(i->ai_family, i->ai_socktype, i->ai_protocol);
+        if(fd == -1)
+            continue;
+        if(
+                bind(fd, i->ai_addr, i->ai_addrlen) == 0
+                && ::listen(fd, 100) == 0)
+            break;
+        close(fd);
+        fd = -1;
+    }
+    freeaddrinfo(result);
+
+    if(fd==-1)
+    {
+        ERROR_LOG("Unable to bind/listen on " \
+                << (interface==nullptr?"0.0.0.0":interface) << ":" << service)
+        return false;
+    }
+
+    if(!pollAdd(fd))
+    {
+        ERROR_LOG("Unable to add socket " \
+                << (interface==nullptr?"0.0.0.0":interface) << ":" << service \
+                << " to poll list: " << std::strerror(errno));
         close(fd);
         return false;
     }
