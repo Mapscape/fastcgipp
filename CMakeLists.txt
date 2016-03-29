@@ -79,10 +79,17 @@ add_executable(http_test
     src/http.cpp
     tests/http.cpp)
 add_test("Fastcgipp::Http" http_test)
+add_executable(sockets_test
+    EXCLUDE_FROM_ALL
+    src/log.cpp
+    src/sockets.cpp
+    tests/sockets.cpp)
+add_test("Fastcgipp::Sockets" sockets_test)
 add_custom_target(
     tests DEPENDS
     protocol_test
-    http_test)
+    http_test
+    sockets_test)
 
 # And finally the documentation
 find_package(Doxygen)
