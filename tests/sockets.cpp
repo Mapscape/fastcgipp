@@ -5,6 +5,7 @@
 #include <map>
 #include <random>
 #include <algorithm>
+#include <iterator>
 
 const size_t chunkSize=4096;
 const unsigned int tranCount=1024;
@@ -31,7 +32,7 @@ void client()
     std::uniform_int_distribution<unsigned long long> intDist;
     unsigned int state;
     
-    while(maxSockets<socketCount && buffers.size()==0)
+    while(maxSockets<socketCount || buffers.size())
     {
         // Any data waiting for us to recieve?
         {
@@ -67,12 +68,17 @@ void client()
             if(!buffer.socket.valid())
                 FAIL_LOG("A socket has become invalid client side!")
 
-        // Doing we initiate a connection or send data?
+        // Do we initiate a connection, send data or wait?
         {
-            std::discrete_distribution<> dist({
-                    socketCount-maxSockets,
-                    sends});
-            state=dist(rd);
+            if(socketCount-maxSockets || sends)
+            {
+                std::discrete_distribution<> dist({
+                        socketCount-maxSockets,
+                        sends});
+                state=dist(rd);
+            }
+            else
+                state=2;
         }
         switch(state)
         {
@@ -93,13 +99,24 @@ void client()
                 buffer.count = 0;
                 ++maxSockets;
                 ++sends;
+                break;
             }
             case 1:
             {
                 std::uniform_int_distribution<size_t> dist(0, buffers.size()-1);
-                auto buffer = buffers.begin()+dist(rd);
-                if(socket
+                auto pair = buffers.begin();
+                std::advance(pair, dist(rd));
+                if(!pair->first.valid())
+                    FAIL_LOG("Trying to send on an invalid socket client side");
+
+                buffer->second.send += buffer->first.write(
+                        &*buffer->second.send,
+                        &*(buffer->second.data.end()-buffer->second.send));
+
             }
+            default:
+                group.poll(true);
+                break;
         }
     }
 }
