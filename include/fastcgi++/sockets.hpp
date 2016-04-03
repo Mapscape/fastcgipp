@@ -38,6 +38,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <thread>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -258,7 +259,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    March 26, 2016
+     * @date    April 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup
@@ -378,6 +379,12 @@ namespace Fastcgipp
          * as is desired.
          */
         void wake();
+
+        //! How many active sockets (not counting listeners) are in the group
+        size_t size() const
+        {
+            return m_sockets.size();
+        }
 
     private:
         //! Our sockets need access to our private data
