@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 26, 2016
+ * @date       April 2, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -88,7 +88,7 @@ namespace Fastcgipp
      * level sockets and also the creation/destruction of the sockets
      * themselves.
      *
-     * @date    March 26, 2016
+     * @date    April 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Transceiver
@@ -362,7 +362,10 @@ namespace Fastcgipp
         std::map<Socket, ReceiveBuffer> m_receiveBuffers;
 
         //! Transmit all buffered data possible
-        inline void transmit();
+        /*!
+         * @return True if we successfully sent all data that was queued up.
+         */
+        inline bool transmit();
 
         //! Remove receive buffers associated to dead sockets.
         inline void cleanupReceiveBuffers();
