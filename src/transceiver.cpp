@@ -91,13 +91,14 @@ void Fastcgipp::Transceiver::handler()
     std::unique_lock<std::mutex> lock(m_terminateMutex);
     m_terminate=false;
     bool flushed;
+    Socket socket;
 
     while(!m_terminate)
     {
         lock.unlock();
 
         flushed = transmit();
-        Socket socket = m_sockets.poll(flushed);
+        socket = m_sockets.poll(flushed);
         receive(socket);
         cleanupReceiveBuffers();
 
