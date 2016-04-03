@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 26, 2016
+ * @date       April 2, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -62,7 +62,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    March 26, 2016
+     * @date    April 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -107,7 +107,7 @@ namespace Fastcgipp
         };
 
         //! Shared pointer to hold the socket data.
-        const std::shared_ptr<Data> m_data;
+        std::shared_ptr<Data> m_data;
 
         //! This is only true for a non-copy constructed object.
         bool m_original;
@@ -193,6 +193,17 @@ namespace Fastcgipp
             m_data(x.m_data),
             m_original(false)
         {}
+
+        //! Assignment
+        /*!
+         * Any sockets assigned with this will not be marked original.
+         */
+        Socket& operator=(const Socket& x)
+        {
+            m_data = x.m_data;
+            m_original = false;
+            return *this;
+        }
 
         //! Move constructor
         /*!
