@@ -8,12 +8,13 @@
 #include <iterator>
 #include <mutex>
 
-const size_t chunkSize=4096;
-const unsigned int tranCount=1024;
-const unsigned int socketCount=1024;
+const size_t chunkSize=128;
+const unsigned int tranCount=128;
+const unsigned int socketCount=256;
 
 bool done;
 std::mutex doneMutex;
+bool clientSleeping;
 
 void client()
 {
@@ -35,7 +36,6 @@ void client()
     std::random_device rd;
     std::uniform_int_distribution<unsigned long long> intDist;
     unsigned int state;
-    
     while(maxSockets<socketCount || buffers.size())
     {
         // Any data waiting for us to recieve?
@@ -56,13 +56,20 @@ void client()
                         FAIL_LOG("Echoed data does not match that which was "\
                                 "sent")
 
-                    if(++buffer->second.count == tranCount)
+                    ++buffer->second.count;
+
+                    if(buffer->second.count == tranCount)
                     {
+                        INFO_LOG("Closing a socket")
                         socket.close();
                         buffers.erase(buffer);
                     }
                     else
+                    {
                         ++sends;
+                        buffer->second.send = buffer->second.data.cbegin();
+                        buffer->second.receive = buffer->second.buffer.begin();
+                    }
                 }
             }
         }
@@ -87,10 +94,9 @@ void client()
         {
             case 0:
             {
-                Fastcgipp::Socket socket = group.connect("localhost", "23987");
+                Fastcgipp::Socket socket = group.connect("127.0.0.1", "23987");
                 if(!socket.valid())
                     FAIL_LOG("Unable to connect to server")
-                INFO_LOG("Connected")
                 Buffer& buffer(buffers[socket]);
                 buffer.buffer.resize(chunkSize);
                 buffer.data.resize(chunkSize);
@@ -122,14 +128,19 @@ void client()
                         &*buffer.send,
                         buffer.data.end()-buffer.send);
 
-                if(buffer.receive == buffer.buffer.end())
+                if(buffer.send == buffer.data.end())
                     --sends;
+
+                break;
             }
             default:
-                group.poll(true);
+                if(maxSockets<socketCount || buffers.size())
+                    group.poll(true);
                 break;
         }
     }
+    
+    INFO_LOG("Done")
 
     std::lock_guard<std::mutex> lock(doneMutex);
     done=true;
@@ -145,6 +156,8 @@ void server()
     };
 
     Fastcgipp::SocketGroup group;
+    if(!group.listen("127.0.0.1", "23987"))
+        FAIL_LOG("Unable to listen on 127.0.0.1:23987")
     std::map<Fastcgipp::Socket, Buffer> buffers;
     std::unique_lock<std::mutex> lock(doneMutex);
     bool flushed;
@@ -167,7 +180,10 @@ void server()
                         &*buffer.position,
                         buffer.data.end()-buffer.position);
                 if(buffer.position  == buffer.data.end())
+                {
                     buffer.sending = false;
+                    buffer.position = buffer.data.begin();
+                }
                 else
                     flushed = false;
             }
@@ -178,18 +194,27 @@ void server()
             Fastcgipp::Socket socket=group.poll(flushed);
             if(socket.valid())
             {
-                auto buffer = buffers.find(socket);
-                if(buffer == buffers.end())
-                    FAIL_LOG("Got a valid socket server side that isn't "\
-                            "accounted for")
-                if(buffer->second.sending)
+                auto pair = buffers.find(socket);
+                if(pair == buffers.end())
+                {
+                    pair = buffers.insert(std::make_pair(
+                                socket,
+                                Buffer())).first;
+                    pair->second.data.resize(chunkSize);
+                    pair->second.position = pair->second.data.begin();
+                }
+                Buffer& buffer = pair->second;
+                if(buffer.sending)
                     FAIL_LOG("Got a valid socket for reception that is now "\
                             "in sending mode")
-                buffer->second.position += socket.read(
-                        &*buffer->second.position,
-                        buffer->second.data.end()-buffer->second.position);
-                if(buffer->second.position == buffer->second.data.end())
-                    buffer->second.sending = true;
+                buffer.position += socket.read(
+                        &*buffer.position,
+                        buffer.data.end()-buffer.position);
+                if(buffer.position == buffer.data.end())
+                {
+                    buffer.position = buffer.data.begin();
+                    buffer.sending = true;
+                }
             }
         }
 
@@ -217,6 +242,7 @@ void server()
 int main()
 {
     done=false;
+    clientSleeping=false;
     std::thread serverThread(server);
     client();
     serverThread.join();

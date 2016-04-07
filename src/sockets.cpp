@@ -360,7 +360,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::connect(
         fd = socket(i->ai_family, i->ai_socktype, i->ai_protocol);
         if(fd == -1)
             continue;
-        if(::connect(fd, i->ai_addr, i->ai_addrlen) == -1)
+        if(::connect(fd, i->ai_addr, i->ai_addrlen) != -1)
             break;
         close(fd);
         fd = -1;
