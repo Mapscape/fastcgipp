@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 26, 2016
+ * @date       April 7, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -100,6 +100,16 @@ void Fastcgipp::Socket::close()
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
         m_data->m_group.m_sockets.erase(m_data->m_socket);
+    }
+}
+
+Fastcgipp::Socket::~Socket()
+{
+    if(m_original && valid())
+    {
+        ::close(m_data->m_socket);
+        m_data->m_valid = false;
+        m_data->m_group.pollDel(m_data->m_socket);
     }
 }
 
@@ -383,7 +393,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
     int pollResult;
     epoll_event event;
 
-    while(true)
+    while(m_listeners.size()+m_sockets.size() > 0)
     {
         if(block)
         {
@@ -416,7 +426,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
         {
             if(m_listeners.find(event.data.fd) != m_listeners.end())
             {
-                if(event.events & EPOLLIN)
+                if(event.events&EPOLLIN  && (event.events&~EPOLLIN)==0)
                 {
                     createSocket(event.data.fd);
                     continue;
@@ -429,6 +439,9 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 {
                     FAIL_LOG("The listen socket hung up.")
                 }
+                else
+                    FAIL_LOG("Got a weird event 0x" << std::hex << event.events\
+                            << " on listen epoll." )
             }
             else if(event.data.fd == m_wakeSockets[1])
             {
@@ -452,37 +465,45 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
             }
             else
             {
-                if(event.events & EPOLLIN)
+                const auto socket = m_sockets.find(event.data.fd);
+                if(socket == m_sockets.end())
                 {
-                    const auto socket = m_sockets.find(event.data.fd);
-                    if(socket == m_sockets.end())
-                    {
-                        ERROR_LOG("Epoll gave fd " << event.data.fd \
-                                << " which isn't in m_sockets.")
-                        pollDel(event.data.fd);
-                        ::close(event.data.fd);
-                        continue;
-                    }
-                    else
-                        return socket->second;
+                    ERROR_LOG("Epoll gave fd " << event.data.fd \
+                            << " which isn't in m_sockets.")
+                    pollDel(event.data.fd);
+                    ::close(event.data.fd);
+                    continue;
+                }
+
+                if(event.events&EPOLLIN && (event.events&~EPOLLIN)==0)
+                {
+                    return socket->second;
                 }
                 else if(event.events & EPOLLERR)
                 {
                     ERROR_LOG("Error in socket" << event.data.fd)
-                    m_sockets.erase(event.data.fd);
+                    socket->second.close();
                     continue;
                 }
                 else if(event.events & EPOLLHUP)
                 {
                     WARNING_LOG("Socket " << event.data.fd << " hung up")
-                    m_sockets.erase(event.data.fd);
+                    socket->second.close();
                     continue;
                 }
+                else if(event.events & EPOLLRDHUP)
+                {
+                    socket->second.close();
+                    continue;
+                }
+                else
+                    FAIL_LOG("Got a weird event 0x" << std::hex << event.events\
+                            << " on socket epoll." )
             }
         }
-
-        return Socket();
+        break;
     }
+    return Socket();
 }
 
 void Fastcgipp::SocketGroup::wake()
@@ -538,7 +559,7 @@ bool Fastcgipp::SocketGroup::pollAdd(const socket_t socket)
 {
     epoll_event event;
     event.data.fd = socket;
-    event.events = EPOLLIN;
+    event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
     return epoll_ctl(m_poll, EPOLL_CTL_ADD, socket, &event) != -1;
 }
 

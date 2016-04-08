@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 2, 2016
+ * @date       April 7, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -63,7 +63,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    April 2, 2016
+     * @date    April 7, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -220,11 +220,7 @@ namespace Fastcgipp
         }
 
         //! Calls close() on the socket if we are destructing the original
-        ~Socket()
-        {
-            if(m_original)
-                close();
-        }
+        ~Socket();
 
         //! Returns true if this socket is still open and capable of read/write.
         bool valid() const
@@ -259,7 +255,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    April 2, 2016
+     * @date    April 7, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup
