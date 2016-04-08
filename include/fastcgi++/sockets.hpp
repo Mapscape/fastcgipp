@@ -395,11 +395,11 @@ namespace Fastcgipp
         //! A pair of sockets for wakeup purposes
         socket_t m_wakeSockets[2];
 
-        //! Set to true while sleeping
-        bool m_sleeping;
+        //! Set to true while there is a pending wake
+        bool m_waking;
 
         //! We need this mutex to thread safe the wake() function.
-        std::mutex m_sleepingMutex;
+        std::mutex m_wakingMutex;
 
         //! All the sockets
         std::map<socket_t, Socket> m_sockets;

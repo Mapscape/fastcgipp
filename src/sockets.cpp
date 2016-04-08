@@ -115,7 +115,7 @@ Fastcgipp::Socket::~Socket()
 
 Fastcgipp::SocketGroup::SocketGroup():
     m_poll(epoll_create1(0)),
-    m_sleeping(false)
+    m_waking(false)
 {
     // Add our wakeup socket into the epoll list
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
@@ -395,27 +395,11 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 
     while(m_listeners.size()+m_sockets.size() > 0)
     {
-        if(block)
-        {
-            std::unique_lock<std::mutex> lock(m_sleepingMutex);
-            m_sleeping=true;
-            lock.unlock();
-            pollResult = epoll_wait(
-                    m_poll,
-                    &event,
-                    1,
-                    -1);
-            lock.lock();
-            m_sleeping=false;
-        }
-        else
-        {
-            pollResult = epoll_wait(
-                    m_poll,
-                    &event,
-                    1,
-                    0);
-        }
+        pollResult = epoll_wait(
+                m_poll,
+                &event,
+                1,
+                block?-1:0);
 
         if(pollResult<0)
         {
@@ -447,10 +431,12 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
             {
                 if(event.events & EPOLLIN)
                 {
+                    std::lock_guard<std::mutex> lock(m_wakingMutex);
                     char x[256];
                     if(read(m_wakeSockets[1], x, 256)<1)
                         FAIL_LOG("Unable to read out of wakeup socket: " << \
                                 std::strerror(errno))
+                    m_waking=false;
                     block=false;
                     continue;
                 }
@@ -471,7 +457,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                     ERROR_LOG("Epoll gave fd " << event.data.fd \
                             << " which isn't in m_sockets.")
                     pollDel(event.data.fd);
-                    ::close(event.data.fd);
+                    close(event.data.fd);
                     continue;
                 }
 
@@ -508,11 +494,10 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 
 void Fastcgipp::SocketGroup::wake()
 {
-    std::unique_lock<std::mutex> lock(m_sleepingMutex);
-    if(m_sleeping)
+    std::lock_guard<std::mutex> lock(m_wakingMutex);
+    if(!m_waking)
     {
-        m_sleeping=false;
-        lock.unlock();
+        m_waking=true;
         char x=0;
         if(write(m_wakeSockets[0], &x, 1) != 1)
             FAIL_LOG("Unable to write to wakeup socket: " \
@@ -522,25 +507,25 @@ void Fastcgipp::SocketGroup::wake()
 
 void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
 {
-    ::sockaddr_un addr;
-    ::socklen_t addrlen=sizeof(sockaddr_un);
+    sockaddr_un addr;
+    socklen_t addrlen=sizeof(sockaddr_un);
     const socket_t socket=::accept(
             listener,
-            (::sockaddr*)&addr,
+            (sockaddr*)&addr,
             &addrlen);
     if(socket<0)
         FAIL_LOG("Unable to accept() with fd " \
                 << listener << ": " \
                 << std::strerror(errno))
-    if(::fcntl(
+    if(fcntl(
             socket,
             F_SETFL,
-            (::fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK)
+            (fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK)
             < 0)
     {
         ERROR_LOG("Unable to set NONBLOCK on fd " << socket \
                 << " with fcntl(): " << std::strerror(errno))
-        ::close(socket);
+        close(socket);
         return;
     }
 
