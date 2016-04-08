@@ -9,7 +9,7 @@
 #include <mutex>
 
 const size_t chunkSize=1024;
-const unsigned int tranCount=128;
+const unsigned int tranCount=512;
 const unsigned int socketCount=256;
 
 bool done;
@@ -146,7 +146,6 @@ void client()
     std::lock_guard<std::mutex> lock(doneMutex);
     done=true;
     serverGroup->wake();
-    INFO_LOG("DONE")
 }
 
 void server()
