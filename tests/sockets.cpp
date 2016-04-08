@@ -8,13 +8,14 @@
 #include <iterator>
 #include <mutex>
 
-const size_t chunkSize=128;
+const size_t chunkSize=1024;
 const unsigned int tranCount=128;
 const unsigned int socketCount=256;
 
 bool done;
 std::mutex doneMutex;
-bool clientSleeping;
+
+Fastcgipp::SocketGroup* serverGroup;
 
 void client()
 {
@@ -47,9 +48,10 @@ void client()
                 if(buffer == buffers.end())
                     FAIL_LOG("Got a valid socket client side that isn't "\
                             "accounted for")
-                buffer->second.receive += socket.read(
+                const size_t read = socket.read(
                         &*buffer->second.receive,
                         buffer->second.buffer.end()-buffer->second.receive);
+                buffer->second.receive += read;
                 if(buffer->second.receive == buffer->second.buffer.end())
                 {
                     if(buffer->second.data != buffer->second.buffer)
@@ -60,7 +62,6 @@ void client()
 
                     if(buffer->second.count == tranCount)
                     {
-                        INFO_LOG("Closing a socket")
                         socket.close();
                         buffers.erase(buffer);
                     }
@@ -115,18 +116,20 @@ void client()
             }
             case 1:
             {
-                std::uniform_int_distribution<size_t> dist(0, buffers.size()-1);
                 auto pair = buffers.begin();
-                std::advance(pair, dist(rd));
+                while(pair->second.data.end() == pair->second.send)
+                    ++pair;
+
                 if(!pair->first.valid())
                     FAIL_LOG("Trying to send on an invalid socket client side");
 
                 Fastcgipp::Socket& socket =
                     const_cast<Fastcgipp::Socket&>(pair->first);
                 Buffer& buffer = pair->second;
-                buffer.send += socket.write(
+                const size_t sent = socket.write(
                         &*buffer.send,
                         buffer.data.end()-buffer.send);
+                buffer.send += sent;
 
                 if(buffer.send == buffer.data.end())
                     --sends;
@@ -140,10 +143,10 @@ void client()
         }
     }
     
-    INFO_LOG("Done")
-
     std::lock_guard<std::mutex> lock(doneMutex);
     done=true;
+    serverGroup->wake();
+    INFO_LOG("DONE")
 }
 
 void server()
@@ -156,11 +159,13 @@ void server()
     };
 
     Fastcgipp::SocketGroup group;
+    serverGroup = &group;
     if(!group.listen("127.0.0.1", "23987"))
         FAIL_LOG("Unable to listen on 127.0.0.1:23987")
     std::map<Fastcgipp::Socket, Buffer> buffers;
     std::unique_lock<std::mutex> lock(doneMutex);
     bool flushed;
+    unsigned int sends=0;
 
     while(!done)
     {
@@ -176,20 +181,22 @@ void server()
             
             if(socket.valid() && buffer.sending)
             {
-                buffer.position += socket.write(
+                const size_t sent = socket.write(
                         &*buffer.position,
                         buffer.data.end()-buffer.position);
+                buffer.position += sent;
                 if(buffer.position  == buffer.data.end())
                 {
                     buffer.sending = false;
                     buffer.position = buffer.data.begin();
+                    --sends;
                 }
                 else
                     flushed = false;
             }
         }
 
-        // Any data waiting for us to recieve?
+        // Any data waiting for us to receive?
         {
             Fastcgipp::Socket socket=group.poll(flushed);
             if(socket.valid())
@@ -207,13 +214,20 @@ void server()
                 if(buffer.sending)
                     FAIL_LOG("Got a valid socket for reception that is now "\
                             "in sending mode")
-                buffer.position += socket.read(
+                const size_t desired = buffer.data.end()-buffer.position;
+                if(desired == 0)
+                    FAIL_LOG("Trying to read zero bytes on server")
+                const size_t read = socket.read(
                         &*buffer.position,
-                        buffer.data.end()-buffer.position);
+                        desired);
+                if(read == 0)
+                    FAIL_LOG("Read zero bytes on server side!")
+                buffer.position += read;
                 if(buffer.position == buffer.data.end())
                 {
                     buffer.position = buffer.data.begin();
                     buffer.sending = true;
+                    ++sends;
                 }
             }
         }
@@ -242,7 +256,6 @@ void server()
 int main()
 {
     done=false;
-    clientSleeping=false;
     std::thread serverThread(server);
     client();
     serverThread.join();
