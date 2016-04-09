@@ -219,8 +219,6 @@ void server()
                 const size_t read = socket.read(
                         &*buffer.position,
                         desired);
-                if(read == 0)
-                    FAIL_LOG("Read zero bytes on server side!")
                 buffer.position += read;
                 if(buffer.position == buffer.data.end())
                 {
