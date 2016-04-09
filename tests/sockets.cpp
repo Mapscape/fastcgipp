@@ -90,7 +90,7 @@ void client()
                 unsigned(maxConc-buffers.size()));
 
         // Do we initiate a connection, send data or wait?
-        if(socketCount-maxSockets || sends>0)
+        if(connects>0 || sends>0)
         {
             std::discrete_distribution<> dist({
                     double(connects),
