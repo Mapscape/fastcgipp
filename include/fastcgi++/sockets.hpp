@@ -2,14 +2,14 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 7, 2016
+ * @date       April 9, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
  * It is this file, along with sockets.cpp, that must be modified to make
- * fastcgi++ work on any non-linux operating system. Although not completely
- * sure, I believe all that needs to be modified in this file is
- * Fastcgipp::socket_t and Fastcgipp::poll_t.
+ * fastcgi++ work on Windows. Although not completely sure, I believe all that
+ * needs to be modified in this file is Fastcgipp::socket_t and
+ * Fastcgipp::poll_t.
  */
 
 /*******************************************************************************
@@ -40,14 +40,26 @@
 #include <set>
 #include <thread>
 
+#include "fastcgi++/config.h"
+
+#ifdef FASTCGIPP_UNIX
+#include <vector>
+#include <poll.h>
+#endif
+
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
     //! Our socket identifier type in GNU/Linux is simply an int
     typedef int socket_t;
 
-    //! Our polling type in GNU/Linux is simply an int
-    typedef int poll_t;
+#ifdef FASTCGIPP_LINUX
+    //! Our polling type using the Linux kernel is simply an int
+    typedef const int poll_t;
+#elif defined FASTCGIPP_UNIX
+    //! Our polling type using generic Unix is an array of pollfds
+    typedef std::vector<pollfd> poll_t;
+#endif
 
     class SocketGroup;
 
@@ -63,7 +75,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    April 7, 2016
+     * @date    April 9, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -390,7 +402,7 @@ namespace Fastcgipp
         std::set<socket_t> m_listeners;
 
         //! Our poll object
-        const poll_t m_poll;
+        poll_t m_poll;
 
         //! A pair of sockets for wakeup purposes
         socket_t m_wakeSockets[2];
