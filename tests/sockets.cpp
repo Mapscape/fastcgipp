@@ -9,8 +9,9 @@
 #include <mutex>
 
 const size_t chunkSize=1024;
-const unsigned int tranCount=512;
-const unsigned int socketCount=256;
+const unsigned int tranCount=768;
+const unsigned int socketCount=512;
+const unsigned int maxConc=64;
 
 bool done;
 std::mutex doneMutex;
@@ -36,10 +37,12 @@ void client()
     unsigned int sends=0;
     std::random_device rd;
     std::uniform_int_distribution<unsigned long long> intDist;
+    std::bernoulli_distribution boolDist(0.75);
     unsigned int state;
     while(maxSockets<socketCount || buffers.size())
     {
         // Any data waiting for us to recieve?
+        do
         {
             Fastcgipp::Socket socket=group.poll(false);
             if(socket.valid())
@@ -73,18 +76,24 @@ void client()
                     }
                 }
             }
-        }
+            else
+                break;
+        } while(boolDist(rd));
 
         // Check for dirty sockets
         for(const auto& buffer: buffers)
             if(!buffer.first.valid())
                 FAIL_LOG("A socket has become invalid client side!")
 
+        const unsigned int connects = std::min(
+                socketCount-maxSockets,
+                unsigned(maxConc-buffers.size()));
+
         // Do we initiate a connection, send data or wait?
         if(socketCount-maxSockets || sends>0)
         {
             std::discrete_distribution<> dist({
-                    double(socketCount-maxSockets),
+                    double(connects),
                     double(sends)});
             state=dist(rd);
         }
@@ -95,44 +104,54 @@ void client()
         {
             case 0:
             {
-                Fastcgipp::Socket socket = group.connect("127.0.0.1", "23987");
-                if(!socket.valid())
-                    FAIL_LOG("Unable to connect to server")
-                Buffer& buffer(buffers[socket]);
-                buffer.buffer.resize(chunkSize);
-                buffer.data.resize(chunkSize);
-                for(
-                        auto i = (unsigned long long*)(&*buffer.data.begin());
-                        i < (unsigned long long*)(&*buffer.data.end());
-                        ++i)
-                    *i = intDist(rd);
+                unsigned int count = connects;
+                do
+                {
+                    Fastcgipp::Socket socket =
+                        group.connect("127.0.0.1", "23987");
+                    if(!socket.valid())
+                        FAIL_LOG("Unable to connect to server")
+                    Buffer& buffer(buffers[socket]);
+                    buffer.buffer.resize(chunkSize);
+                    buffer.data.resize(chunkSize);
+                    for(
+                            auto i = (unsigned long long*)(&*buffer.data.begin());
+                            i < (unsigned long long*)(&*buffer.data.end());
+                            ++i)
+                        *i = intDist(rd);
 
-                buffer.send = buffer.data.cbegin();
-                buffer.receive = buffer.buffer.begin();
-                buffer.count = 0;
-                ++maxSockets;
-                ++sends;
+                    buffer.send = buffer.data.cbegin();
+                    buffer.receive = buffer.buffer.begin();
+                    buffer.count = 0;
+                    ++maxSockets;
+                    ++sends;
+                } while(boolDist(rd) && --count>0);
                 break;
             }
             case 1:
             {
-                auto pair = buffers.begin();
-                while(pair->second.data.end() == pair->second.send)
-                    ++pair;
+                unsigned int count=sends;
+                do
+                {
+                    auto pair = buffers.begin();
+                    while(pair->second.data.end() == pair->second.send)
+                        ++pair;
 
-                if(!pair->first.valid())
-                    FAIL_LOG("Trying to send on an invalid socket client side");
+                    if(!pair->first.valid())
+                        FAIL_LOG("Trying to send on an invalid socket client "\
+                                "side");
 
-                Fastcgipp::Socket& socket =
-                    const_cast<Fastcgipp::Socket&>(pair->first);
-                Buffer& buffer = pair->second;
-                const size_t sent = socket.write(
-                        &*buffer.send,
-                        buffer.data.end()-buffer.send);
-                buffer.send += sent;
+                    Fastcgipp::Socket& socket =
+                        const_cast<Fastcgipp::Socket&>(pair->first);
+                    Buffer& buffer = pair->second;
+                    const size_t sent = socket.write(
+                            &*buffer.send,
+                            buffer.data.end()-buffer.send);
+                    buffer.send += sent;
 
-                if(buffer.send == buffer.data.end())
-                    --sends;
+                    if(buffer.send == buffer.data.end())
+                        --sends;
+                } while(boolDist(rd) && --count>0);
 
                 break;
             }
