@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 2, 2016
+ * @date       April 9, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -36,8 +36,9 @@
 #include <map>
 #include <functional>
 #include <memory>
+#include <atomic>
 #include <mutex>
-#include <condition_variable>
+#include <thread>
 
 #include <fastcgi++/protocol.hpp>
 
@@ -88,7 +89,7 @@ namespace Fastcgipp
      * level sockets and also the creation/destruction of the sockets
      * themselves.
      *
-     * @date    April 2, 2016
+     * @date    April 9, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Transceiver
@@ -110,6 +111,12 @@ namespace Fastcgipp
          * termination is complete.
          */
         void terminate();
+
+        //! Call from any thread to start the handler() thread
+        /*!
+         * If the thread is already running this will do nothing.
+         */
+        void start();
 
         //! Request a write block in the buffer for transmission
         /*!
@@ -374,13 +381,10 @@ namespace Fastcgipp
         inline void receive(Socket& socket);
 
         //! True when handler() should be terminating
-        bool m_terminate;
+        std::atomic_bool m_terminate;
 
-        //! Termination mutex
-        std::mutex m_terminateMutex;
-
-        //! Termination condition variable
-        std::condition_variable m_terminateCV;
+        //! Thread our handler is running in
+        std::thread m_thread;
     };
 }
 
