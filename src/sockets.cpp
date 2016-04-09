@@ -32,7 +32,6 @@
 #include "fastcgi++/sockets.hpp"
 #include "fastcgi++/log.hpp"
 
-
 #ifdef FASTCGIPP_LINUX
 #include <sys/epoll.h>
 #elif defined FASTCGIPP_UNIX
