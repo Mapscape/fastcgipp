@@ -276,11 +276,45 @@ void server()
         FAIL_LOG("Server has active sockets when it shouldn't")
 }
 
+#include "fastcgi++/config.h"
+#if defined FASTCGIPP_UNIX || defined FASTCGIPP_LINUX
+#include <sys/types.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <sstream>
+unsigned int openfds()
+{
+    std::ostringstream ss;
+    ss << "/proc/" << getpid() << "/fd";
+
+    DIR* const directory = opendir(ss.str().c_str());
+    dirent* file;
+    unsigned int count = 0;
+
+    while((file = readdir(directory)) != nullptr)
+        ++count;
+
+    closedir(directory);
+    return count;
+}
+#elif
+unsigned int openfds()
+{
+    return 0;
+}
+#endif
+
 int main()
 {
+    const auto initialFds = openfds();
+
     done=false;
     std::thread serverThread(server);
     client();
     serverThread.join();
+
+    if(openfds() != initialFds)
+        FAIL_LOG("There are leftover file descriptors after they should all "\
+                "have been closed");
     return 0;
 }
