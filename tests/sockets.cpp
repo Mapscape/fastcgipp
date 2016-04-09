@@ -8,10 +8,11 @@
 #include <iterator>
 #include <mutex>
 
-const size_t chunkSize=1024;
+const unsigned int chunkSize=1024;
 const unsigned int tranCount=768;
 const unsigned int socketCount=512;
 const unsigned int maxConc=64;
+const unsigned int seed=2006;
 
 bool done;
 std::mutex doneMutex;
@@ -35,8 +36,8 @@ void client()
 
     unsigned int maxSockets=0;
     unsigned int sends=0;
-    std::random_device rd;
-    std::uniform_int_distribution<unsigned long long> intDist;
+    std::mt19937 rd(seed);
+    std::mt19937_64 rd_64(seed);
     std::bernoulli_distribution boolDist(0.75);
     unsigned int state;
     while(maxSockets<socketCount || buffers.size())
@@ -47,32 +48,38 @@ void client()
             Fastcgipp::Socket socket=group.poll(false);
             if(socket.valid())
             {
-                auto buffer = buffers.find(socket);
-                if(buffer == buffers.end())
+                auto pair = buffers.find(socket);
+                if(pair == buffers.end())
                     FAIL_LOG("Got a valid socket client side that isn't "\
                             "accounted for")
+                auto& buffer = pair->second;
                 const size_t read = socket.read(
-                        &*buffer->second.receive,
-                        buffer->second.buffer.end()-buffer->second.receive);
-                buffer->second.receive += read;
-                if(buffer->second.receive == buffer->second.buffer.end())
+                        &*buffer.receive,
+                        buffer.buffer.end()-buffer.receive);
+                buffer.receive += read;
+                if(buffer.receive == buffer.buffer.end())
                 {
-                    if(buffer->second.data != buffer->second.buffer)
+                    if(buffer.data != buffer.buffer)
                         FAIL_LOG("Echoed data does not match that which was "\
                                 "sent")
 
-                    ++buffer->second.count;
+                    ++buffer.count;
 
-                    if(buffer->second.count == tranCount)
+                    if(buffer.count == tranCount)
                     {
                         socket.close();
-                        buffers.erase(buffer);
+                        buffers.erase(pair);
                     }
                     else
                     {
                         ++sends;
-                        buffer->second.send = buffer->second.data.cbegin();
-                        buffer->second.receive = buffer->second.buffer.begin();
+                        buffer.send = buffer.data.cbegin();
+                        buffer.receive = buffer.buffer.begin();
+                        for(
+                                auto i = (uint64_t*)(&*buffer.data.begin());
+                                i < (uint64_t*)(&*buffer.data.end());
+                                ++i)
+                            *i = rd_64();
                     }
                 }
             }
@@ -115,10 +122,10 @@ void client()
                     buffer.buffer.resize(chunkSize);
                     buffer.data.resize(chunkSize);
                     for(
-                            auto i = (unsigned long long*)(&*buffer.data.begin());
-                            i < (unsigned long long*)(&*buffer.data.end());
+                            auto i = (uint64_t*)(&*buffer.data.begin());
+                            i < (uint64_t*)(&*buffer.data.end());
                             ++i)
-                        *i = intDist(rd);
+                        *i = rd_64();
 
                     buffer.send = buffer.data.cbegin();
                     buffer.receive = buffer.buffer.begin();
