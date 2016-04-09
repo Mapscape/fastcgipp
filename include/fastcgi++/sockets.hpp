@@ -38,7 +38,6 @@
 #include <map>
 #include <mutex>
 #include <set>
-#include <thread>
 
 #include "fastcgi++/config.h"
 

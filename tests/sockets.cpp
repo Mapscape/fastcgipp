@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <iterator>
 #include <mutex>
+#include <thread>
 
 const unsigned int chunkSize=1024;
 const unsigned int tranCount=768;
