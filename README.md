@@ -8,7 +8,7 @@
 
 **April 10, 2016** - Fastcgi++ is going through a dramatic rewrite now and the
 master branch does not work at all. If you're here hoping for a functional
-version scroll down to the releases section. If you'd like do read a bit more
+version scroll down to the releases section. If you'd like to read a bit more
 about the rewrite and fastcgi++ in general, check out "[Ten years of
 fastcgi++][1]".
 
@@ -16,7 +16,7 @@ fastcgi++][1]".
 
 ## About ##
 
-This library is intended as a high-efficiency C++ api for web development. It
+This library is intended as a high-efficiency C++14 api for web development. It
 allows your applications to communicate with web servers through the FastCGI
 protocol, tabulates all your environment data, manages character encoding, and
 allows requests to effectively share CPU time. If you want any further
@@ -26,8 +26,9 @@ release, or build it yourself.
 ## Releases ##
 
 Your best bet for releases and documentation is to clone the Git repository,
-checkout the tag you want and see the building section of this file. If you're
-too lazy for that, however, you can take the risk and try the following links.
+checkout the tag you want and see the building section of either this file or
+the Doxygen documentation. If you're too lazy for that, however, you can take
+the risk and try the following links.
 
  - [[fastcgi++-2.1.tar.bz2][2]] [[Documentation][3]] [[Tag][10]]
  - [[fastcgi++-2.0.tar.bz2][4]] [[Documentation][5]] [[Tag][11]]
