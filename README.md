@@ -1,62 +1,94 @@
 # fastcgi++ #
-#### 3.0alpha ####
-#### Eddie Carle ####
 
-## Introduction ##
+**3.0alpha**
 
-The fastcgi++ library started out as a C++ alternative to the official FastCGI 
-developers kit. Although the official developers kit provided some degree of 
-C++ interface, it was very limited. The goal of this project was to provide a 
-framework that offered all the facilities that the C++ language has to offer. 
-Over time the scope broadened to the point that it became more than just a 
-simple protocol library, but a platform to develop web application under C++. 
-To the dismay of many, this library has zero support for the old CGI protocol. 
-The consensus was that if one were to be developing web applications under C++, 
-efficient memory management and CPU usage would be a top priority, not CGI 
-compatibility. Effective management of simultaneous requests without the need 
-for multiple threads is something that fastcgi++ does best. Session data is 
-organized into meaningful data types as opposed to a series of text strings. 
-Internationalization and Unicode support is another top priority. The library 
-is templated to allow internal wide character use for efficient text processing 
-while code converting down to utf-8 upon transmission to the client.
+**Eddie Carle**
 
-## Features ##
+## News ##
 
- - Support for multiple locales and characters sets including wide Unicode and 
-   utf-8
- - Internally manages simultaneous requests instead of leaving that to the user
- - Establishes session data into usable data structures
- - Implements a task manager that can not only easily communicate outside the 
-   library, but with separate threads
- - Provides a familiar io interface by implementing it through STL iostreams
- - Complete compliance with FastCGI protocol version 1
+**April 10, 2016** - Fastcgi++ is going through a dramatic rewrite now and the
+master branch does not work at all. If you're here hoping for a functional
+version scroll down to the releases section. If you'd like do read a bit more
+about the rewrite and fastcgi++ in general, check out [Ten years of
+fastcgi++][1].
 
-## Overview ##
+[1]: http://eddie.isatec.ca/2016/04/10/ten-years-of-fastcgi++.html
 
-The fastcgi++ library is built around three classes. Fastcgipp::Manager handles 
-all task and request management along with the communication inside and outside 
-the library. Fastcgipp::Transceiver handles all low level socket io and 
-maintains send/receive buffers. Fastcgipp::Request is designed to handle the 
-individual requests themselves. The aspects of the FastCGI protocol itself are 
-defined in the Fastcgipp::Protocol namespace.
+## About ##
 
-The Fastcgipp::Request class is a pure virtual class. The class, as is, 
-establishes and parses session data. Once complete it looks to user defined 
-virtual functions for actually generating the response. A response shall be 
-outputted by the user defined virtuals through an output stream. Once a request 
-has control over operation it maintains it until relinquishing it. Should the 
-user know a request will sit around waiting for data, it can return control to 
-Fastcgipp::Manager and have a message sent back through the manager when the 
-data is ready. The aspects of the session are build around the Fastcgipp::Http 
-namespace.
+This library is intended as a high-efficiency C++ api for web development. It
+allows your applications to communicate with web servers through the FastCGI
+protocol, tabulates all your environment data, manages character encoding, and
+allows requests to effectively share CPU time. If you want any further
+information check the Doxygen documentation associated with the respective
+release, or build it yourself.
 
-Fastcgipp::Manager basically runs an endless loop (which can be terminated 
-through POSIX signals or a function call from another thread) that passes 
-control to requests that have a message queued or the transceiver. It is smart 
-enough to go into a sleep mode when there are no tasks to complete or data to 
-receive.
+## Releases ##
 
-Fastcgipp::Transceiver's transmit half implements a cyclic buffer that can grow 
-indefinitely to insure that operation does not halt. The send half receives 
-full frames and passes them through Fastcgipp::Manager onto the requests. It 
-manages all the open connections and polls them for incoming data.
+Your best bet for releases and documentation is to clone the Git repository,
+checkout the tag you want and see the building section of this file. If you're
+too lazy for that, however, you can take the risk and try the following links.
+
+ - [fastcgi++-2.1.tar.bz2][2] [Documentation][3] [Tag][10]
+ - [fastcgi++-2.0.tar.bz2][4] [Documentation][5] [Tag][11]
+ - [fastcgi++-1.2.tar.bz2][6] [Documentation][7]
+ - [fastcgi++-1.1.tar.bz2][8]
+ - [fastcgi++-1.0.tar.bz2][9]
+
+[2]: http://download.savannah.nongnu.org/releases/fastcgipp/fastcgi++-2.1.tar.bz2
+[3]: http://www.nongnu.org/fastcgipp/doc/2.1
+[4]: http://download.savannah.nongnu.org/releases/fastcgipp/fastcgi++-2.0.tar.bz2
+[5]: http://www.nongnu.org/fastcgipp/doc/2.0
+[6]: http://download.savannah.nongnu.org/releases/fastcgipp/fastcgi++-1.2.tar.bz2
+[7]: http://www.nongnu.org/fastcgipp/doc/1.2
+[8]: http://download.savannah.nongnu.org/releases/fastcgipp/fastcgi++-1.1.tar.bz2
+[9]: http://download.savannah.nongnu.org/releases/fastcgipp/fastcgi++-1.0.tar.bz2 
+[10]: https://github.com/eddic/fastcgipp/tree/2.1
+[11]: https://github.com/eddic/fastcgipp/tree/2.0
+
+## Building ##
+
+This should provide you with all the basic stuff you need to do to get fastcgi++
+built and installed. The build system is CMake and the following instructions
+assume you are in Bash.
+
+First we need to clone.
+
+    git clone https://github.com/eddic/fastcgipp.git fastcgi++
+
+Then we make a build directory.
+
+    mkdir fastcgi++.build
+    cd fastcgi++.build
+
+Now we need run cmake.
+
+    cmake ../fastcgi++ -DCMAKE_BUILD_TYPE=RELEASE
+
+Note that that was to do a release build. That means heavily optimized and not
+good for debugging. If you want to do some debugging to either fastcgi++ or an
+application you are developing that uses fastcgi++, do a debug build.
+
+    cmake ../fastcgi++ -DCMAKE_BUILD_TYPE=DEBUG
+
+Now let's build the library itself.
+
+    make
+
+Then we can build the documentation if we so desire.
+
+    make doc
+
+Now let's install it all (doc included if it was built).
+
+    make install
+
+Maybe we should build the unit tests?
+
+    make tests
+
+And of course we should run them as well.
+
+    make test
+
+And that, as they say, is it.
