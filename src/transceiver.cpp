@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 9, 2016
+ * @date       April 12, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -161,9 +161,8 @@ void Fastcgipp::Transceiver::SendBuffer::free(size_t size)
 }
 
 Fastcgipp::Transceiver::Transceiver(
-        std::function<void(Protocol::RequestId, Message&&)> sendMessage):
-    m_sendMessage(sendMessage),
-    m_terminate(false)
+        const std::function<void(Protocol::RequestId, Message&&)> sendMessage):
+    m_sendMessage(sendMessage)
 {
     m_sockets.listen();
 }

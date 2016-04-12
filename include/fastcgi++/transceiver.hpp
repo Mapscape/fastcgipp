@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 9, 2016
+ * @date       April 12, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -89,7 +89,7 @@ namespace Fastcgipp
      * level sockets and also the creation/destruction of the sockets
      * themselves.
      *
-     * @date    April 9, 2016
+     * @date    April 12, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Transceiver
@@ -157,7 +157,8 @@ namespace Fastcgipp
          * @param[in] sendMessage Function to call to pass messages to requests
          */
         Transceiver(
-                std::function<void(Protocol::RequestId, Message&&)> sendMessage);
+                const std::function<void(Protocol::RequestId, Message&&)>
+                sendMessage);
 
     private:
         //! Buffer type for receiving FastCGI records
@@ -360,7 +361,7 @@ namespace Fastcgipp
         SendBuffer m_sendBuffer;
 
         //! Function to call to pass messages to requests
-        std::function<void(Protocol::RequestId, Message&&)> m_sendMessage;
+        const std::function<void(Protocol::RequestId, Message&&)> m_sendMessage;
 
         //! Listen for connections with this
         SocketGroup m_sockets;
