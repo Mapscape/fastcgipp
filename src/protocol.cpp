@@ -2,7 +2,7 @@
  * @file       protocol.cpp
  * @brief      Defines everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 12, 2016
+ * @date       April 12, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -27,6 +27,7 @@
 *******************************************************************************/
 
 #include "fastcgi++/protocol.hpp"
+#include "fastcgi++/config.h"
 
 bool Fastcgipp::Protocol::processParamHeader(
         const char* data,
@@ -86,5 +87,4 @@ Fastcgipp::Protocol::maxReqsReply("FCGI_MAX_REQS", "50");
 const Fastcgipp::Protocol::ManagementReply<15, 1>
 Fastcgipp::Protocol::mpxsConnsReply("FCGI_MPXS_CONNS", "1");
 
-//const char Fastcgipp::version[]=PACKAGE_VERSION;
-const char Fastcgipp::version[]="3.0alpha";
+const char Fastcgipp::version[]=FASTCGIPP_VERSION;
