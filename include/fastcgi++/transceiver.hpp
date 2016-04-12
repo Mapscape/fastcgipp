@@ -104,13 +104,13 @@ namespace Fastcgipp
          */
         void handler();
 
-        //! Call from any thread to terminate the handler() thread
+        //! Call from any thread to stop the handler() thread
         /*!
          * Calling this thread will signal the handler() thread to cleanly
-         * terminate itself and return. Calls to this will block until
+         * stop itself and return. Calls to this will block until
          * termination is complete.
          */
-        void terminate();
+        void stop();
 
         //! Call from any thread to start the handler() thread
         /*!
@@ -437,7 +437,7 @@ namespace Fastcgipp
         inline void receive(Socket& socket);
 
         //! True when handler() should be terminating
-        std::atomic_bool m_terminate;
+        std::atomic_bool m_stop;
 
         //! Thread safe starting and stopping
         std::mutex m_startStopMutex;

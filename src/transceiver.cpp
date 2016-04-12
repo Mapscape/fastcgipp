@@ -91,7 +91,7 @@ void Fastcgipp::Transceiver::handler()
     bool flushed;
     Socket socket;
 
-    while(!m_terminate)
+    while(!m_stop)
     {
         flushed = transmit();
         socket = m_sockets.poll(flushed);
@@ -100,12 +100,12 @@ void Fastcgipp::Transceiver::handler()
     }
 }
 
-void Fastcgipp::Transceiver::terminate()
+void Fastcgipp::Transceiver::stop()
 {
     std::lock_guard<std::mutex> lock(m_startStopMutex);
     if(m_thread.joinable())
     {
-        m_terminate=true;
+        m_stop=true;
         m_sockets.wake();
         m_thread.join();
     }
@@ -116,7 +116,7 @@ void Fastcgipp::Transceiver::start()
     std::lock_guard<std::mutex> lock(m_startStopMutex);
     if(!m_thread.joinable())
     {
-        m_terminate=false;
+        m_stop=false;
         std::thread thread(&Fastcgipp::Transceiver::handler, this);
         m_thread.swap(thread);
     }
