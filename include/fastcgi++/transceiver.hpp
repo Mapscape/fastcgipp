@@ -384,6 +384,9 @@ namespace Fastcgipp
         //! True when handler() should be terminating
         std::atomic_bool m_terminate;
 
+        //! Thread safe starting and stopping
+        std::mutex m_startStopMutex;
+
         //! Thread our handler is running in
         std::thread m_thread;
     };

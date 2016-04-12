@@ -102,6 +102,7 @@ void Fastcgipp::Transceiver::handler()
 
 void Fastcgipp::Transceiver::terminate()
 {
+    std::lock_guard<std::mutex> lock(m_startStopMutex);
     if(m_thread.joinable())
     {
         m_terminate=true;
@@ -112,6 +113,7 @@ void Fastcgipp::Transceiver::terminate()
 
 void Fastcgipp::Transceiver::start()
 {
+    std::lock_guard<std::mutex> lock(m_startStopMutex);
     if(!m_thread.joinable())
     {
         m_terminate=false;
