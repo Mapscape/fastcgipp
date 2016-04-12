@@ -160,6 +160,61 @@ namespace Fastcgipp
                 const std::function<void(Protocol::RequestId, Message&&)>
                 sendMessage);
 
+        //! Listen to the default Fastcgi socket
+        /*!
+         * Calling this simply adds the default socket used on FastCGI
+         * applications that are initialized from HTTP servers.
+         *
+         * @return True on success. False on failure.
+         */
+        bool listen()
+        {
+            return m_sockets.listen();
+        }
+
+        //! Listen to a named socket
+        /*!
+         * Listen on a named socket. In the Unix world this would be a path. In
+         * the Windows world I have no idea what this would be.
+         *
+         * @param [in] name Name of socket (path in Unix world).
+         * @param [in] permissions Permissions of socket. If you do not wish to
+         *                         set the permissions, leave it as it's default
+         *                         value of 0xffffffffUL.
+         * @param [in] owner Owner (username) of socket. Leave as nullptr if you
+         *                   do not wish to set it.
+         * @param [in] group Group (group name) of socket. Leave as nullptr if
+         *                   you do not wish to set it.
+         * @return True on success. False on failure.
+         */
+        bool listen(
+                const char* name,
+                uint32_t permissions = 0xffffffffUL,
+                const char* owner = nullptr,
+                const char* group = nullptr)
+        {
+            return m_sockets.listen(name, permissions, owner, group);
+        }
+
+        //! Listen to a TCP port
+        /*!
+         * Listen on a specific interface and TCP port.
+         *
+         * @param [in] interface Interface to listen on. This could be an IP
+         *                       address or a hostname. If you don't want to
+         *                       specify the interface, pass nullptr.
+         * @param [in] service Port or service to listen on. This could be a
+         *                     service name, or a string representation of a
+         *                     port number.
+         * @return True on success. False on failure.
+         */
+        bool listen(
+                const char* interface,
+                const char* service)
+        {
+            return m_sockets.listen(interface, service);
+        }
+
     private:
         //! Buffer type for receiving FastCGI records
         struct ReceiveBuffer

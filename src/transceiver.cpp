@@ -166,7 +166,6 @@ Fastcgipp::Transceiver::Transceiver(
         const std::function<void(Protocol::RequestId, Message&&)> sendMessage):
     m_sendMessage(sendMessage)
 {
-    m_sockets.listen();
 }
 
 void Fastcgipp::Transceiver::cleanupReceiveBuffers()
