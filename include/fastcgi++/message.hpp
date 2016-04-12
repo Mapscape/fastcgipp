@@ -2,7 +2,7 @@
  * @file       message.hpp
  * @brief      Defines the Message data structure.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       March 6, 2016
+ * @date       April 12, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -45,8 +45,35 @@ namespace Fastcgipp
      */
     struct Message
     {
-        Message(const int type_): type(type_) {}
-        Message(): type(0) {}
+        Message(const int type_):
+            type(type_),
+            size(0)
+        {}
+
+        Message():
+            type(0),
+            size(0)
+        {}
+
+        Message(Message&& x):
+            type(x.type),
+            size(x.size),
+            data(std::move(x.data))
+        {
+            x.size=0;
+        }
+        Message& operator=(Message&& x)
+        {
+            type=x.type;
+            size=x.size;
+            data=std::move(x.data);
+
+            x.size=0;
+            return *this;
+        }
+
+        Message(const Message&) =delete;
+        Message& operator=(const Message&) =delete;
 
         //! Type of message. A 0 means FastCGI record. Anything else is open.
         int type;
