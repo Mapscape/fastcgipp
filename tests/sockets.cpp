@@ -169,6 +169,9 @@ void client()
                 break;
         }
     }
+
+    if(group.size())
+        FAIL_LOG("Client has active sockets when it shouldn't")
     
     std::lock_guard<std::mutex> lock(doneMutex);
     done=true;
