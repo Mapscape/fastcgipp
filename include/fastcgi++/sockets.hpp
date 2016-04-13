@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 9, 2016
+ * @date       April 13, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -38,6 +38,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <atomic>
 
 #include "fastcgi++/config.h"
 
@@ -266,7 +267,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    April 7, 2016
+     * @date    April 13, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup
@@ -393,6 +394,16 @@ namespace Fastcgipp
             return m_sockets.size();
         }
 
+        //! Should we accept new connections?
+        /*!
+         * @param [in] status Set to false if you want to start refusing new
+         *                    connections. True otherwise (default).
+         */
+        void accept(bool status)
+        {
+            m_accept = status;
+        }
+
     private:
         //! Our sockets need access to our private data
         friend class Socket;
@@ -408,6 +419,9 @@ namespace Fastcgipp
 
         //! Set to true while there is a pending wake
         bool m_waking;
+
+        //! Set to true if we should be accepting new connections
+        std::atomic_bool m_accept;
 
         //! We need this mutex to thread safe the wake() function.
         std::mutex m_wakingMutex;

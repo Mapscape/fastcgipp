@@ -122,7 +122,8 @@ Fastcgipp::SocketGroup::SocketGroup():
 #ifdef FASTCGIPP_LINUX
     m_poll(epoll_create1(0)),
 #endif
-    m_waking(false)
+    m_waking(false),
+    m_accept(true)
 {
     // Add our wakeup socket into the poll list
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
@@ -561,10 +562,15 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
         return;
     }
 
-    m_sockets.erase(socket);
-    m_sockets.emplace(
-            socket,
-            std::move(Socket(socket, *this)));
+    if(m_accept)
+    {
+        m_sockets.erase(socket);
+        m_sockets.emplace(
+                socket,
+                std::move(Socket(socket, *this)));
+    }
+    else
+        close(socket);
 }
 
 Fastcgipp::Socket::Socket():
