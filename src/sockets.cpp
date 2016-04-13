@@ -563,12 +563,9 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
     }
 
     if(m_accept)
-    {
-        m_sockets.erase(socket);
         m_sockets.emplace(
                 socket,
                 std::move(Socket(socket, *this)));
-    }
     else
         close(socket);
 }
