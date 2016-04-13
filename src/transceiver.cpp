@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 12, 2016
+ * @date       April 13, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -88,14 +88,14 @@ void Fastcgipp::Transceiver::SendBuffer::commitWrite(
 
 void Fastcgipp::Transceiver::handler()
 {
-    bool flushed;
+    bool flushed=false;
     Socket socket;
 
-    while(!m_stop)
+    while(!(m_stop && m_sockets.size()==0))
     {
-        flushed = transmit();
         socket = m_sockets.poll(flushed);
         receive(socket);
+        flushed = transmit();
         cleanupReceiveBuffers();
     }
 }
@@ -106,8 +106,9 @@ void Fastcgipp::Transceiver::stop()
     if(m_thread.joinable())
     {
         m_stop=true;
-        m_sockets.wake();
+        m_sockets.accept(false);
         m_thread.join();
+        m_sockets.accept(true);
     }
 }
 

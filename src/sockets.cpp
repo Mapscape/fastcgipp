@@ -123,7 +123,8 @@ Fastcgipp::SocketGroup::SocketGroup():
     m_poll(epoll_create1(0)),
 #endif
     m_waking(false),
-    m_accept(true)
+    m_accept(true),
+    m_refreshListeners(false)
 {
     // Add our wakeup socket into the poll list
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
@@ -147,13 +148,8 @@ bool Fastcgipp::SocketGroup::listen()
 
     if(m_listeners.find(listen) == m_listeners.end())
     {
-        if(!pollAdd(listen))
-        {
-            ERROR_LOG("Unable to add listen socket " << listen \
-                    << " to the poll list: " << std::strerror(errno))
-            return false;
-        }
         m_listeners.insert(listen);
+        m_refreshListeners = true;
         return true;
     }
     else
@@ -235,15 +231,8 @@ bool Fastcgipp::SocketGroup::listen(
         return false;
     }
 
-    if(!pollAdd(fd))
-    {
-        ERROR_LOG("Unable to add unix socket " << fd << " to poll list: "\
-                << std::strerror(errno));
-        close(fd);
-        return false;
-    }
-
     m_listeners.insert(fd);
+    m_refreshListeners = true;
     return true;
 }
 
@@ -299,16 +288,8 @@ bool Fastcgipp::SocketGroup::listen(
         return false;
     }
 
-    if(!pollAdd(fd))
-    {
-        ERROR_LOG("Unable to add socket " \
-                << (interface==nullptr?"0.0.0.0":interface) << ":" << service \
-                << " to poll list: " << std::strerror(errno));
-        close(fd);
-        return false;
-    }
-
     m_listeners.insert(fd);
+    m_refreshListeners = true;
     return true;
 }
 
@@ -417,6 +398,17 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 
     while(m_listeners.size()+m_sockets.size() > 0)
     {
+        if(m_refreshListeners)
+        {
+            for(auto& listener: m_listeners)
+            {
+                pollDel(listener);
+                if(m_accept && !pollAdd(listener))
+                    FAIL_LOG("Unable to add listen socket " << listener \
+                            << " to the poll list: " << std::strerror(errno))
+            }
+            m_refreshListeners=false;
+        }
 #ifdef FASTCGIPP_LINUX
         pollResult = epoll_wait(
                 m_poll,
@@ -618,4 +610,14 @@ bool Fastcgipp::SocketGroup::pollDel(const socket_t socket)
     m_poll.erase(fd);
     return true;
 #endif
+}
+
+void Fastcgipp::SocketGroup::accept(bool status)
+{
+    if(status != m_accept)
+    {
+        m_refreshListeners = true;
+        m_accept = status;
+        wake();
+    }
 }

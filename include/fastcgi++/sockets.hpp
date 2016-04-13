@@ -399,10 +399,7 @@ namespace Fastcgipp
          * @param [in] status Set to false if you want to start refusing new
          *                    connections. True otherwise (default).
          */
-        void accept(bool status)
-        {
-            m_accept = status;
-        }
+        void accept(bool status);
 
     private:
         //! Our sockets need access to our private data
@@ -422,6 +419,9 @@ namespace Fastcgipp
 
         //! Set to true if we should be accepting new connections
         std::atomic_bool m_accept;
+
+        //! Set to true if we should refresh the listeners in the poll
+        std::atomic_bool m_refreshListeners;
 
         //! We need this mutex to thread safe the wake() function.
         std::mutex m_wakingMutex;
