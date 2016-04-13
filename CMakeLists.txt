@@ -6,9 +6,9 @@ string(TIMESTAMP BUILD_TIME UTC)
 
 # Set up our log level for fastcgi++/log.hpp
 if(NOT LOG_LEVEL)
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
         set(LOG_LEVEL 1)
-    elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    elseif(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
         set(LOG_LEVEL 3)
     else()
         set(LOG_LEVEL 2)
@@ -58,40 +58,34 @@ add_library(fastcgipp SHARED
     src/transceiver.cpp)
 install(TARGETS fastcgipp LIBRARY DESTINATION lib)
 
-# Install the header files of course
+# Install the config file
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/include/fastcgi++/config.h"
     DESTINATION "include/fastcgi++")
 
 # All the test stuff
 enable_testing()
-add_executable(protocol_test
-    EXCLUDE_FROM_ALL
-    src/log.cpp
-    src/protocol.cpp
-    tests/protocol.cpp)
+
+add_executable(protocol_test EXCLUDE_FROM_ALL tests/protocol.cpp)
+add_dependencies(protocol_test fastcgipp)
+target_link_libraries(protocol_test PRIVATE fastcgipp)
 add_test("Fastcgipp::Protocol" protocol_test)
-add_executable(http_test
-    EXCLUDE_FROM_ALL
-    src/log.cpp
-    src/protocol.cpp
-    src/http.cpp
-    tests/http.cpp)
+
+add_executable(http_test EXCLUDE_FROM_ALL tests/http.cpp)
+add_dependencies(http_test fastcgipp)
+target_link_libraries(http_test PRIVATE fastcgipp)
 add_test("Fastcgipp::Http" http_test)
-add_executable(sockets_test
-    EXCLUDE_FROM_ALL
-    src/log.cpp
-    src/sockets.cpp
-    tests/sockets.cpp)
+
+add_executable(sockets_test EXCLUDE_FROM_ALL tests/sockets.cpp)
+add_dependencies(sockets_test fastcgipp)
+target_link_libraries(sockets_test PRIVATE fastcgipp)
 add_test("Fastcgipp::Sockets" sockets_test)
-add_executable(transceiver_test
-    EXCLUDE_FROM_ALL
-    src/log.cpp
-    src/sockets.cpp
-    src/protocol.cpp
-    src/transceiver.cpp
-    tests/transceiver.cpp)
+
+add_executable(transceiver_test EXCLUDE_FROM_ALL tests/transceiver.cpp)
+add_dependencies(transceiver_test fastcgipp)
+target_link_libraries(transceiver_test PRIVATE fastcgipp)
 add_test("Fastcgipp::Transceiver" transceiver_test)
+
 add_custom_target(
     tests DEPENDS
     protocol_test
