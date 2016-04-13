@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 9, 2016
+ * @date       April 13, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -430,9 +430,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 #endif
 
         if(pollResult<0)
-        {
             FAIL_LOG("Error on poll: " << std::strerror(errno))
-        }
         else if(pollResult>0)
         {
 #ifdef FASTCGIPP_LINUX
@@ -460,13 +458,9 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                     continue;
                 }
                 else if(events & pollErr)
-                {
                     FAIL_LOG("Error in listen socket.")
-                }
                 else if(events & (pollHup | pollRdHup))
-                {
                     FAIL_LOG("The listen socket hung up.")
-                }
                 else
                     FAIL_LOG("Got a weird event 0x" << std::hex << events\
                             << " on listen poll." )
@@ -485,13 +479,9 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                     continue;
                 }
                 else if(events & (pollHup | pollRdHup))
-                {
                     FAIL_LOG("The wakeup socket hung up.")
-                }
                 else if(events & pollErr)
-                {
                     FAIL_LOG("Error in the wakeup socket.")
-                }
             }
             else
             {
@@ -506,9 +496,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 }
 
                 if(events == pollIn)
-                {
                     return socket->second;
-                }
                 else if(events & pollErr)
                 {
                     ERROR_LOG("Error in socket" << socketId)
