@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 12, 2016
+ * @date       April 13, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -106,9 +106,10 @@ namespace Fastcgipp
 
         //! Call from any thread to stop the handler() thread
         /*!
-         * Calling this thread will signal the handler() thread to cleanly
-         * stop itself and return. Calls to this will block until
-         * termination is complete.
+         * Calling this thread will signal the handler() thread to cleanly stop
+         * itself and return. This means it keeps going until all connections
+         * are closed. No new connections are accepted. Calls to this will
+         * block until the stop is complete.
          */
         void stop();
 
