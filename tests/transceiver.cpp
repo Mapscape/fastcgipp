@@ -11,177 +11,209 @@
 #include <random>
 #include <thread>
 #include <chrono>
+#include <queue>
+#include <atomic>
+#include <condition_variable>
 
-struct Pair
+const unsigned int seed = 2006;
+const size_t messageSize = 12314;
+const unsigned int echoers = 5;
+
+struct Echo
 {
-    Fastcgipp::Socket socket;
-    Fastcgipp::Socket clientSocket;
-    std::vector<char> data;
+    Fastcgipp::Protocol::RequestId id;
+    Fastcgipp::Message message;
+    size_t position;
+
+    Echo(
+            Fastcgipp::Protocol::RequestId id_,
+            Fastcgipp::Message&& message_,
+            size_t position_):
+        id(id_),
+        message(std::move(message_)),
+        position(position_)
+    {}
 };
+std::mutex echoMutex;
+std::queue<Echo> echoQueue;
+std::condition_variable echoCv;
+std::atomic_bool echoTerminate;
 
 void receive(
-        std::multimap<Fastcgipp::Protocol::FcgiId, Pair>& requests,
-        std::mutex& mutex,
         Fastcgipp::Protocol::RequestId id,
         Fastcgipp::Message&& message)
 {
-    std::vector<char> data;
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        const auto range = requests.equal_range(id.m_id);
-        if(range.first == requests.end())
-            FAIL_LOG("receive() got a message associated with an unknown ID")
-        
-        auto invalid = range.second;
-        auto item = range.second;
-        for(auto it=range.first; it!=range.second; ++it)
-        {
-            if(!it->second.socket.valid())
-                invalid=it;
-            else if(it->second.socket == id.m_socket)
-            {
-                item=it;
-                break;
-            }
-        }
-        if(item == range.second)
-            item = invalid;
-        if(item == range.second)
-            FAIL_LOG("receive() got a message associated with an unknown socket")
-
-        item->second.socket = id.m_socket;
-        data.swap(item->second.data);
+        std::lock_guard<std::mutex> lock(echoMutex);
+        echoQueue.emplace(id, std::move(message), 0);
     }
+    echoCv.notify_one();
+}
 
-    if(!std::equal(
-                data.cbegin(),
-                data.cend(),
-                message.data.get(),
-                message.data.get()+message.size))
-        FAIL_LOG("recieve() got a message that didn't match what was sent")
-    else
-        DEBUG_LOG("Got a good message")
+Fastcgipp::Transceiver transceiver(receive);
+
+void echo()
+{
+    std::mt19937 rd(seed);
+    std::bernoulli_distribution killIt(0.1);
+    std::uniform_real_distribution<> extra(1.0, 4.0);
+
+    std::unique_lock<std::mutex> lock(echoMutex);
+
+    while(!echoTerminate || echoQueue.size())
+    {
+        if(echoQueue.size())
+        {
+            Echo echo(std::move(echoQueue.front()));
+            echoQueue.pop();
+            lock.unlock();
+
+            while(echo.position < echo.message.size)
+            {
+                auto block = transceiver.requestWrite(
+                        size_t(echo.message.size*extra(rd)));
+                const size_t size = std::min(echo.message.size, block.m_size);
+                std::copy(
+                        echo.message.data.get(),
+                        echo.message.data.get()+size,
+                        block.m_data);
+                transceiver.commitWrite(block.m_size, echo.id.m_socket, killIt(rd));
+                echo.position += size;
+            }
+
+            lock.lock();
+        }
+        else
+            echoCv.wait(lock);
+    }
 }
 
 struct FullMessage
 {
     Fastcgipp::Protocol::Header header;
-    char body[10000];
+    char body[messageSize];
 };
 
-const unsigned int seed=2006;
+struct Buffer
+{
+    std::vector<char> send;
+    std::vector<char> receive;
+};
 
 int main()
 {
-    std::multimap<Fastcgipp::Protocol::FcgiId, Pair> requests;
-    std::mutex mutex;
-
-    Fastcgipp::Transceiver transceiver(
-            std::bind(
-                receive,
-                std::ref(requests),
-                std::ref(mutex),
-                std::placeholders::_1,
-                std::placeholders::_2));
     transceiver.listen("127.0.0.1", "23987");
     transceiver.start();
-
+    echoTerminate = false;
 
     std::mt19937 rd(seed);
     std::bernoulli_distribution boolDist(0.5);
     std::uniform_int_distribution<> requestDist(0, 65534);
-    std::multimap<Fastcgipp::Protocol::FcgiId, Pair>::iterator request;
 
-    {
     Fastcgipp::SocketGroup group;
+    const unsigned int maxConnections=128;
+    unsigned int connections=0;
 
-    // Send data to transceiver
-    for(int i=0; i<100; ++i)
+    std::multimap<Fastcgipp::Protocol::RequestId, Buffer> requests;
+    std::multimap<Fastcgipp::Protocol::RequestId, Buffer>::iterator request;
+
+    while(connections<maxConnections || requests.size())
     {
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1us);
-        std::lock_guard<std::mutex> lock(mutex);
-
-        // Should we make a new connection or use an old one?
-        if(requests.size() && boolDist(rd))
+        // Should we sent data?
+        if(boolDist(rd))
         {
-            // Let's use an old one
-            std::uniform_int_distribution<> dist(0, requests.size()-1);
-            request = requests.begin();
-            std::advance(request, dist(rd));
+            // Yes will send data
 
-            // Should we reuse the request or make a new one?
-            if(!request->second.data.empty() || boolDist(rd))
+            // Should we make a new connection or use an old one?
+            if(connections==maxConnections || (requests.size() && boolDist(rd)))
             {
-                // A new request over the same connection
-                auto& serverSocket = request->second.socket;
-                auto& clientSocket = request->second.clientSocket;
+                // Let's use an old one
+                std::uniform_int_distribution<> dist(0, requests.size()-1);
+                request = requests.begin();
+                std::advance(request, dist(rd));
 
-                request = requests.insert(std::make_pair(
-                            requestDist(rd),
-                            Pair()));
-                request->second.socket = serverSocket;
-                request->second.clientSocket = clientSocket;
-                DEBUG_LOG("Making new request with id=" << request->first)
+                // Should we reuse the request or make a new one?
+                if(!request->second.send.empty() || boolDist(rd))
+                {
+                    // A new request over the same connection
+                    request = requests.insert(std::make_pair(
+                                Fastcgipp::Protocol::RequestId(
+                                    requestDist(rd),
+                                    request->first.m_socket),
+                                Buffer()));
+                    request->second.send.reserve(messageSize);
+                    request->second.receive.reserve(messageSize);
+                    DEBUG_LOG("Making new request with id=" << request->first.m_id)
+                }
+                else
+                {
+                    // Or maybe we should simulate a killed connection?
+                    if(boolDist(rd) && boolDist(rd) && boolDist(rd) && boolDist(rd))
+                    {
+                        DEBUG_LOG("Simulating a client side kill")
+                        const_cast<Fastcgipp::Socket&>(
+                                request->first.m_socket).close();
+                        continue;
+                    }
+
+                    DEBUG_LOG("Reusing request with id=" << request->first.m_id)
+                }
             }
             else
-                DEBUG_LOG("Reusing request with id=" << request->first)
+            {
+                // Let's make a new one
+                request = requests.insert(std::make_pair(
+                            Fastcgipp::Protocol::RequestId(
+                                requestDist(rd),
+                                group.connect(
+                                        "127.0.0.1",
+                                        "23987")),
+                            Buffer()));
+                request->second.send.reserve(messageSize);
+                request->second.receive.reserve(messageSize);
+                ++connections;
+                DEBUG_LOG("Making new connection with id=" << request->first.m_id)
+            }
+            request->second.send.resize(sizeof(FullMessage));
+            Fastcgipp::Protocol::Header& header = 
+                *(Fastcgipp::Protocol::Header*)request->second.send.data();
+            header.fcgiId = request->first.m_id;
+            header.contentLength = messageSize-51;
+            header.paddingLength = 51;
+
+            for(
+                    auto i=request->second.send.cbegin();
+                    i<request->second.send.cend(); )
+                i += const_cast<Fastcgipp::Socket&>(
+                    request->first.m_socket).write(
+                        &*i,
+                        request->second.send.cend()-i);
         }
         else
         {
-            // Let's make a new one
-            request = requests.insert(std::make_pair(
-                        requestDist(rd),
-                        Pair()));
-            DEBUG_LOG("Making new connection with id=" << request->first)
-            request->second.clientSocket = group.connect("127.0.0.1", "23987");
+            auto socket = group.poll(false);
+            if(socket.valid())
+            {
+                Fastcgipp::Protocol::Header header;
+                size_t received=0;
+                while(received<sizeof(header))
+                    received += socket.read(
+                            (char*)&header,
+                            sizeof(header)-received);
+
+
+                request = requests.begin();
+                while(request->first.m_socket 
+            }
         }
-        auto& data = request->second.data;
-
-        data.resize(sizeof(FullMessage));
-        Fastcgipp::Protocol::Header& header = 
-            *(Fastcgipp::Protocol::Header*)data.data();
-        header.fcgiId = request->first;
-        header.contentLength = 10000-51;
-        header.paddingLength = 51;
-
-        for(auto i=data.cbegin(); i<data.cend(); )
-            i += request->second.clientSocket.write(&*i, data.cend()-i);
     }
 
-    // Get data from transceiver
-    {
-        std::vector<char> data;
-        data.resize(sizeof(FullMessage));
-        Fastcgipp::Protocol::Header& header = 
-            *(Fastcgipp::Protocol::Header*)data.data();
-        header.fcgiId = 12345;
-        header.contentLength = 50000-51;
-        header.paddingLength = 51;
-        
-        /*
-        Fastcgipp::WriteBlock block;
-        const size_t differential = 181;
-        auto position = data.cbegin();
-
-        do
-        {
-            block = transceiver.requestWrite(data.cend()-position);
-            std::copy(
-                    position,
-                    position
-                        +block.size
-                        -(differential<block.size?differential:0),
-                    block.data);
-            transceiver.commitWrite();*/
-    }
-    }
     transceiver.stop();
-    for(auto& request: requests)
+    /*for(auto& request: requests)
     {
         if(!request.second.data.empty() || request.second.clientSocket.valid())
             FAIL_LOG("A request is incomplete")
-    }
+    }*/
 
     return 0;
 }
