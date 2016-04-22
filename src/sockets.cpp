@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 13, 2016
+ * @date       April 22, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -65,10 +65,10 @@ Fastcgipp::Socket::Socket(
     }
 }
 
-size_t Fastcgipp::Socket::read(char* buffer, size_t size)
+ssize_t Fastcgipp::Socket::read(char* buffer, size_t size)
 {
     if(!valid())
-        return 0;
+        return -1;
 
     const ssize_t count = ::read(m_data->m_socket, buffer, size);
     if(count<0)
@@ -76,15 +76,21 @@ size_t Fastcgipp::Socket::read(char* buffer, size_t size)
         WARNING_LOG("Socket read() error on fd " \
                 << m_data->m_socket << ": " << std::strerror(errno))
         close();
-        return 0;
+        return -1;
     }
-    return (size_t)count;
+    if(count == 0 && m_data->m_closing)
+    {
+        close();
+        return -1;
+    }
+
+    return count;
 }
 
-size_t Fastcgipp::Socket::write(const char* buffer, size_t size)
+ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size)
 {
-    if(!valid())
-        return 0;
+    if(!valid() || m_data->m_closing)
+        return -1;
 
     const ssize_t count = ::write(m_data->m_socket, buffer, size);
     if(count<0)
@@ -92,15 +98,16 @@ size_t Fastcgipp::Socket::write(const char* buffer, size_t size)
         WARNING_LOG("Socket write() error on fd " \
                 << m_data->m_socket << ": " << strerror(errno))
         close();
-        return 0;
+        return -1;
     }
-    return (size_t)count;
+    return count;
 }
 
 void Fastcgipp::Socket::close()
 {
     if(valid())
     {
+        ::shutdown(m_data->m_socket, SHUT_RDWR);
         ::close(m_data->m_socket);
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
@@ -112,6 +119,7 @@ Fastcgipp::Socket::~Socket()
 {
     if(m_original && valid())
     {
+        ::shutdown(m_data->m_socket, SHUT_RDWR);
         ::close(m_data->m_socket);
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
@@ -139,7 +147,10 @@ Fastcgipp::SocketGroup::~SocketGroup()
     close(m_wakeSockets[0]);
     close(m_wakeSockets[1]);
     for(const auto& listener: m_listeners)
-        close(listener);
+    {
+        ::shutdown(listener, SHUT_RDWR);
+        ::close(listener);
+    }
 }
 
 bool Fastcgipp::SocketGroup::listen()
@@ -488,28 +499,22 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                     continue;
                 }
 
-                if(events == pollIn)
-                    return socket->second;
-                else if(events & pollErr)
-                {
-                    ERROR_LOG("Error in socket" << socketId)
-                    socket->second.close();
-                    continue;
-                }
+                if(events & pollRdHup)
+                    socket->second.m_data->m_closing=true;
                 else if(events & pollHup)
                 {
                     WARNING_LOG("Socket " << socketId << " hung up")
-                    socket->second.close();
-                    continue;
+                    socket->second.m_data->m_closing=true;
                 }
-                else if(events & pollRdHup)
+                else if(events & pollErr)
                 {
-                    socket->second.close();
-                    continue;
+                    ERROR_LOG("Error in socket " << socketId)
+                    socket->second.m_data->m_closing=true;
                 }
-                else
+                else if((events & pollIn) == 0)
                     FAIL_LOG("Got a weird event 0x" << std::hex << events\
                             << " on socket poll." )
+                return socket->second;
             }
         }
         break;

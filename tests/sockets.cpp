@@ -54,9 +54,22 @@ void client()
                     FAIL_LOG("Got a valid socket client side that isn't "\
                             "accounted for")
                 auto& buffer = pair->second;
-                const size_t read = socket.read(
+                const ssize_t read = socket.read(
                         &*buffer.receive,
                         buffer.buffer.end()-buffer.receive);
+                if(read<0)
+                {
+                    if(!(buffer.receive == buffer.buffer.begin() &&
+                            (buffer.send == buffer.data.cend() ||
+                             buffer.send == buffer.data.cbegin())))
+                        FAIL_LOG("Socket killed when it's not done echoing")
+                    if(buffer.send == buffer.data.cend())
+                        --sends;
+                    buffers.erase(pair);
+                    continue;
+                }
+                if(buffer.send != buffer.data.cend())
+                    FAIL_LOG("Poll gave us a socket we are sending on")
                 buffer.receive += read;
                 if(buffer.receive == buffer.buffer.end())
                 {
@@ -89,9 +102,9 @@ void client()
         } while(boolDist(rd));
 
         // Check for dirty sockets
-        for(const auto& buffer: buffers)
-            if(!buffer.first.valid())
-                FAIL_LOG("A socket has become invalid client side!")
+        for(auto buffer=buffers.cbegin(); buffer != buffers.cend(); ++buffer)
+            if(!buffer->first.valid())
+                FAIL_LOG("We've got a dirty socket client side")
 
         const unsigned int connects = std::min(
                 socketCount-maxSockets,
@@ -142,19 +155,23 @@ void client()
                 do
                 {
                     auto pair = buffers.begin();
-                    while(pair->second.data.end() == pair->second.send)
+                    while(pair != buffers.end() && (!pair->first.valid() ||
+                            pair->second.data.end() == pair->second.send))
                         ++pair;
 
-                    if(!pair->first.valid())
-                        FAIL_LOG("Trying to send on an invalid socket client "\
-                                "side");
+                    if(pair == buffers.end())
+                        break;
 
                     Fastcgipp::Socket& socket =
                         const_cast<Fastcgipp::Socket&>(pair->first);
                     Buffer& buffer = pair->second;
-                    const size_t sent = socket.write(
+                    const ssize_t sent = socket.write(
                             &*buffer.send,
                             buffer.data.end()-buffer.send);
+                    if(sent < 0)
+                        break;
+                    else if(sent == 0)
+                        FAIL_LOG("We failed sending data!")
                     buffer.send += sent;
 
                     if(buffer.send == buffer.data.end())
@@ -196,6 +213,9 @@ void server()
     bool flushed;
     unsigned int sends=0;
 
+    std::mt19937 rd(seed);
+    std::bernoulli_distribution killSocket(0.0001);
+
     while(!done)
     {
         lock.unlock();
@@ -210,15 +230,25 @@ void server()
             
             if(socket.valid() && buffer.sending)
             {
-                const size_t sent = socket.write(
+                const ssize_t sent = socket.write(
                         &*buffer.position,
                         buffer.data.end()-buffer.position);
+                if(sent<=0)
+                {
+                    continue;
+                    lock.lock();
+                }
                 buffer.position += sent;
                 if(buffer.position  == buffer.data.end())
                 {
                     buffer.sending = false;
                     buffer.position = buffer.data.begin();
                     --sends;
+                    if(killSocket(rd))
+                    {
+                        socket.close();
+                        buffers.erase(socket);
+                    }
                 }
                 else
                     flushed = false;
@@ -246,9 +276,15 @@ void server()
                 const size_t desired = buffer.data.end()-buffer.position;
                 if(desired == 0)
                     FAIL_LOG("Trying to read zero bytes on server")
-                const size_t read = socket.read(
+                const ssize_t read = socket.read(
                         &*buffer.position,
                         desired);
+                if(read<0)
+                {
+                    buffers.erase(pair);
+                    lock.lock();
+                    continue;
+                }
                 buffer.position += read;
                 if(buffer.position == buffer.data.end())
                 {
@@ -256,19 +292,6 @@ void server()
                     buffer.sending = true;
                     ++sends;
                 }
-            }
-        }
-
-        // Clean up dirty sockets
-        {
-            auto buffer=buffers.begin();
-
-            while(buffer != buffers.end())
-            {
-                if(buffer->first.valid())
-                    ++buffer;
-                else
-                    buffer = buffers.erase(buffer);
             }
         }
 

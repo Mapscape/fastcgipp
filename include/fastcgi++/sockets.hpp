@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 13, 2016
+ * @date       April 22, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -75,7 +75,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    April 9, 2016
+     * @date    April 22, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -92,6 +92,13 @@ namespace Fastcgipp
 
             //! Indicates whether or not the socket is dead/invalid.
             bool m_valid;
+
+            //! Indicates whether or not the connection is closing
+            /*!
+             * If this is set to true that once we read zero bytes out of the
+             * socket it has become invalid.
+             */
+            bool m_closing;
 
             //! SocketGroup object this socket is tied to.
             SocketGroup& m_group;
@@ -112,6 +119,7 @@ namespace Fastcgipp
                     SocketGroup& group):
                 m_socket(socket),
                 m_valid(valid),
+                m_closing(false),
                 m_group(group)
             {}
 
@@ -148,42 +156,46 @@ namespace Fastcgipp
         //! Try and read a chunk of data out of the socket.
         /*!
          * This function will attempt to read the requested amount of data out
-         * of the socket into the buffer. The return value indicates how many
-         * bytes were actually read.
+         * of the socket into the buffer. The return value indicates both how
+         * many bytes were read and socket validity.
          *
          * If an error occurs during the read operation the socket is
-         * closed/destroyed and marked invalid. A size of zero is returned in
-         * case of an error but does not indicate an error. Zero could also be
-         * returned if there is simply no data to read as this function is
-         * non-blocking. To test for error simply use the valid() function.
+         * closed/destroyed, marked invalid and -1 is returned. If the other end
+         * has hung up, you can continue reading until the internal buffer is
+         * empty.  At that point -1 is returned and the socket is
+         * closed/destroyed and marked invalid.
          *
          * @param [out] buffer Pointer to memory location to which data should
          *                     be read into.
          * @param [in] size Maximum amount of data to read into the buffer.
          *                  Obviously this should be less than or equal to the
          *                  actual amount of memory allocated in the buffer.
-         * @return Actual number of bytes read into the buffer.
+         * @return Actual number of bytes read into the buffer. If -1 is
+         *         returned the socket is no longer valid and all data has been
+         *         received.
          */
-        size_t read(char* buffer, size_t size);
+        ssize_t read(char* buffer, size_t size);
 
         //! Try and write a chunk of data into the socket.
         /*!
          * This function will attempt to write the requested amount of data into
-         * the socket from the buffer. The return value indicates how many bytes
-         * were actually written.
+         * the socket from the buffer. The return value indicates either how
+         * many bytes were actually written or socket validity.
          *
          * If an error occurs during the write operation the socket is
-         * closed/destroyed and marked invalid. A size of zero is returned in
-         * case of an error but does not indicate an error. Zero could also be
-         * returned if there is simply no room to write data as this function is
-         * non-blocking. To test for error simply use the valid() function.
+         * closed/destroyed, marked invalid and -1 is returned. If the other end
+         * has hung up, -1 will be returned but this does \a not mean the socket
+         * has been closed/destroyed yet. There may yet be data waiting to be
+         * read(). The socket will not be automatically shut down until said
+         * data is read.
          *
          * @param [out] buffer Pointer to memory location to which data should
          *                     be written from.
          * @param [in] size Maximum amount of data to write from the buffer.
-         * @return Actual number of bytes written from the buffer.
+         * @return Actual number of bytes written from the buffer. A -1 means
+         *         you can't actually write data to the socket anymore.
          */
-        size_t write(const char* buffer, size_t size);
+        ssize_t write(const char* buffer, size_t size);
 
         //! We need this to allow the socket objects to be in sorted containers.
         bool operator<(const Socket& x) const
@@ -267,7 +279,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    April 13, 2016
+     * @date    April 22, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup

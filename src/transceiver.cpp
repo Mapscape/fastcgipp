@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 13, 2016
+ * @date       April 22, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -28,16 +28,22 @@
 
 #include "fastcgi++/transceiver.hpp"
 
+#include "fastcgi++/log.hpp"
 bool Fastcgipp::Transceiver::transmit()
 {
     while(!m_sendBuffer.empty())
     {{
         SendBuffer::ReadBlock sendBlock(m_sendBuffer.requestRead());
-        const size_t sent = sendBlock.m_socket.write(
+        const ssize_t sent = sendBlock.m_socket.write(
                 sendBlock.m_data,
                 sendBlock.m_size);
+        if(sent<0)
+        {
+            m_sendBuffer.free(sendBlock.m_size);
+            continue;
+        }
         m_sendBuffer.free(sent);
-        if(sent != sendBlock.m_size)
+        if((size_t)sent != sendBlock.m_size)
             return false;;
     }}
 
@@ -81,6 +87,8 @@ void Fastcgipp::Transceiver::SendBuffer::commitWrite(
             --m_write;
         }
     }
+    if(!socket.valid())
+        FAIL_LOG("Socket invalid in commit")
     m_frames.push(Frame(size, kill, socket));
 
     m_writeLock.unlock();
@@ -96,7 +104,6 @@ void Fastcgipp::Transceiver::handler()
         socket = m_sockets.poll(flushed);
         receive(socket);
         flushed = transmit();
-        cleanupReceiveBuffers();
     }
 }
 
@@ -169,19 +176,6 @@ Fastcgipp::Transceiver::Transceiver(
 {
 }
 
-void Fastcgipp::Transceiver::cleanupReceiveBuffers()
-{
-    auto buffer=m_receiveBuffers.begin();
-
-    while(buffer != m_receiveBuffers.end())
-    {
-        if(buffer->first.valid())
-            ++buffer;
-        else
-            buffer = m_receiveBuffers.erase(buffer);
-    }
-}
-
 void Fastcgipp::Transceiver::receive(Socket& socket)
 {
     if(socket.valid())
@@ -189,7 +183,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
         Message& messageBuffer=m_receiveBuffers[socket].message;
         Protocol::Header& headerBuffer=m_receiveBuffers[socket].header;
 
-        size_t actual;
+        ssize_t actual;
         // Are we in the process of recieving some part of a frame?
         if(!messageBuffer.data)
         {
@@ -199,7 +193,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
             actual=socket.read(
                     (char*)&headerBuffer+messageBuffer.size,
                     sizeof(Protocol::Header)-messageBuffer.size);
-            if(!socket.valid())
+            if(actual<0)
             {
                 m_receiveBuffers.erase(socket);
                 return;
@@ -231,7 +225,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
         actual=socket.read(
                 messageBuffer.data.get()+messageBuffer.size,
                 needed);
-        if(!socket.valid())
+        if(actual<0)
         {
             m_receiveBuffers.erase(socket);
             return;
@@ -239,15 +233,13 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
         messageBuffer.size += actual;
 
         // Did we recieve a full frame?
-        if(actual==needed)
-        {
+        if((size_t)actual==needed)
             m_sendMessage(
                     Protocol::RequestId(header.fcgiId, socket),
                     std::move(messageBuffer));
-            messageBuffer.size=0;
-            messageBuffer.data.reset();
-        }
     }
+    else
+        m_receiveBuffers.erase(socket);
 }
 
 Fastcgipp::Transceiver::SendBuffer::ReadBlock
