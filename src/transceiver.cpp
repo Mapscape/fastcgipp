@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 22, 2016
+ * @date       April 23, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -195,7 +195,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
                     sizeof(Protocol::Header)-messageBuffer.size);
             if(actual<0)
             {
-                m_receiveBuffers.erase(socket);
+                cleanupSocket(socket);
                 return;
             }
 
@@ -227,7 +227,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
                 needed);
         if(actual<0)
         {
-            m_receiveBuffers.erase(socket);
+            cleanupSocket(socket);
             return;
         }
         messageBuffer.size += actual;
@@ -239,7 +239,15 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
                     std::move(messageBuffer));
     }
     else
-        m_receiveBuffers.erase(socket);
+        cleanupSocket(socket);
+}
+
+void Fastcgipp::Transceiver::cleanupSocket(const Socket& socket)
+{
+    m_receiveBuffers.erase(socket);
+    m_sendMessage(
+            Fastcgipp::Protocol::RequestId(Protocol::badFcgiId, socket),
+            Message());
 }
 
 Fastcgipp::Transceiver::SendBuffer::ReadBlock
