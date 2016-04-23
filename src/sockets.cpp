@@ -92,7 +92,7 @@ ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size)
     if(!valid() || m_data->m_closing)
         return -1;
 
-    const ssize_t count = ::write(m_data->m_socket, buffer, size);
+    const ssize_t count = ::send(m_data->m_socket, buffer, size, MSG_NOSIGNAL);
     if(count<0)
     {
         WARNING_LOG("Socket write() error on fd " \
