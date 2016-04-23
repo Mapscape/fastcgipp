@@ -55,6 +55,9 @@ namespace Fastcgipp
         //! The internal ID of a FastCGI request
         typedef uint16_t FcgiId;
 
+        //! Constant that defines a bad/special FcgiId
+        const uint16_t badFcgiId = 0xffffUL;
+
         //! A unique identifier for each FastCGI request
         /*!
          * Because each FastCGI request has both a RequestID and a Socket
