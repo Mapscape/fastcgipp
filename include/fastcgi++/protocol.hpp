@@ -98,11 +98,10 @@ namespace Fastcgipp
             //! We need this to allow the objects to be in sorted containers.
             bool operator<(const RequestId& x) const
             {
-                if(m_socket < x.m_socket)
-                    return true;
-                else if(m_socket == x.m_socket)
+                if(m_socket == x.m_socket)
                     return m_id < x.m_id;
-                return false;
+                else
+                    return m_socket < x.m_socket;
             }
 
             //! We need this to allow the objects to be in sorted containers.
