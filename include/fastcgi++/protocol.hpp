@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <cstdint>
 #include <algorithm>
+#include <map>
 
 #include "fastcgi++/message.hpp"
 #include "fastcgi++/sockets.hpp"
@@ -95,33 +96,35 @@ namespace Fastcgipp
             //! Internal FastCGI request ID
             const FcgiId m_id;
 
-            //! We need this to allow the objects to be in sorted containers.
-            bool operator<(const RequestId& x) const
+            //! We need this uglyness to find ranges based purely on the socket
+            struct Less
             {
-                if(m_socket == x.m_socket)
-                    return m_id < x.m_id;
-                else
-                    return m_socket < x.m_socket;
-            }
+                using is_transparent = std::true_type;
 
-            //! We need this to allow the objects to be in sorted containers.
-            bool operator==(const RequestId& x) const
-            {
-                return m_socket == x.m_socket && m_id == x.m_id;
-            }
+                bool operator()(const RequestId& x, const RequestId& y) const
+                {
+                    if(x.m_socket == y.m_socket)
+                        return x.m_id < y.m_id;
+                    else
+                        return x.m_socket < y.m_socket;
 
-            //! We need this to find ranges based purely on the socket
-            bool operator<(const Socket& socket) const
-            {
-                return m_socket < socket;
-            }
+                }
 
-            //! We need this to find ranges based purely on the socket
-            bool operator==(const Socket& socket) const
-            {
-                return m_socket == socket;
-            }
+                bool operator()(const RequestId& id, const Socket& socket) const
+                {
+                    return id.m_socket < socket;
+                }
+
+                bool operator()(const Socket& socket, const RequestId& id) const
+                {
+                    return socket < id.m_socket;
+                }
+            };
         };
+
+        //! A simple associative container that indexes with RequestId
+        template<class T>
+        using Requests = std::map<RequestId, T, RequestId::Less>;
 
         //! Defines the types of records within the FastCGI protocol
         enum class RecordType: uint8_t
