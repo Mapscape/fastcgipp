@@ -21,7 +21,7 @@ const unsigned int maxRequests=2024;
 
 const unsigned int seed = 2006;
 const size_t messageSize = 12314;
-const unsigned int echoers = 1;
+const unsigned int echoers = 4;
 unsigned int echos = 0;
 
 enum class Kill: char
@@ -34,19 +34,21 @@ enum class Kill: char
 struct Echo
 {
     Fastcgipp::Protocol::RequestId id;
-    Fastcgipp::Message message;
+    std::vector<char> data;
 
     Echo(
             Fastcgipp::Protocol::RequestId id_,
-            Fastcgipp::Message&& message_):
+            std::vector<char>&& data_):
         id(id_),
-        message(std::move(message_))
+        data(std::move(data_))
     {}
 };
 std::mutex echoMutex;
 std::queue<Echo> echoQueue;
 std::condition_variable echoCv;
 std::atomic_bool echoTerminate;
+
+std::vector<std::pair<size_t, Fastcgipp::Protocol::FcgiId>> sizes;
 
 void receive(
         Fastcgipp::Protocol::RequestId id,
@@ -56,7 +58,7 @@ void receive(
     {
         {
             std::lock_guard<std::mutex> lock(echoMutex);
-            echoQueue.emplace(id, std::move(message));
+            echoQueue.emplace(id, std::move(message.data));
         }
         echoCv.notify_one();
     }
@@ -66,9 +68,6 @@ Fastcgipp::Transceiver transceiver(receive);
 
 void echo()
 {
-    std::mt19937 rd(seed);
-    std::uniform_real_distribution<> extra(1.0, 4.0);
-
     std::unique_lock<std::mutex> lock(echoMutex);
 
     while(!echoTerminate || echoQueue.size())
@@ -79,27 +78,12 @@ void echo()
             echoQueue.pop();
             lock.unlock();
 
-            size_t position = 0;
-
-            while(position < echo.message.size)
-            {
-                auto block = transceiver.requestWrite(
-                        size_t((echo.message.size-position)*extra(rd)));
-                const size_t size = std::min(echo.message.size-position, block.m_size);
-                std::copy(
-                        echo.message.data.get()+position,
-                        echo.message.data.get()+position+size,
-                        block.m_data);
-                position += size;
-                const Kill& killer=*(Kill*)(echo.message.data.get()
-                        +sizeof(Fastcgipp::Protocol::Header));
-                const bool kill =
-                    position<echo.message.size?false:killer==Kill::SERVER;
-                transceiver.commitWrite(
-                        size,
-                        echo.id.m_socket,
-                        kill);
-            }
+            const Kill& killer=*(Kill*)(echo.data.data()
+                    +sizeof(Fastcgipp::Protocol::Header));
+            transceiver.send(
+                    echo.id.m_socket,
+                    std::move(echo.data),
+                    killer==Kill::SERVER);
 
             lock.lock();
         }
@@ -163,12 +147,11 @@ int main()
                 // Or maybe we should simulate a nasty killed connection?
                 if(requests.size()>=5 && nastyDist(rd))
                 {
-                    const_cast<Fastcgipp::Socket&>(
-                            request->first.m_socket).close();
+                    request->first.m_socket.close();
                     --connections;
+                    buffers.erase(request->first.m_socket);
                     auto range = requests.equal_range(request->first.m_socket);
                     requests.erase(range.first, range.second);
-                    buffers.erase(request->first.m_socket);
                     goto RECEIVE;
                 }
 
@@ -210,7 +193,7 @@ int main()
             }
             else
             {
-                auto socket = group.connect("127.0.0.1", port.c_str());
+                const auto socket = group.connect("127.0.0.1", port.c_str());
                 if(!socket.valid())
                     FAIL_LOG("Couldn't connect")
 
@@ -260,8 +243,7 @@ int main()
                     i<request->second.cend(); 
                     i += sent)
             {
-                sent = const_cast<Fastcgipp::Socket&>(
-                    request->first.m_socket).write(
+                sent = request->first.m_socket.write(
                         &*i,
                         request->second.cend()-i);
                 if(sent<=0)
@@ -276,7 +258,7 @@ int main()
         {
             // We shall receive data
 RECEIVE:
-            auto socket = group.poll(false);
+            const auto socket = group.poll(false);
             if(socket.valid())
             {
                 std::vector<char>& buffer=buffers[socket];
@@ -352,7 +334,7 @@ RECEIVE:
                             break;
                         }
                 }
-                
+
                 Kill kill=*(Kill*)(request->second.data()
                         +sizeof(Fastcgipp::Protocol::Header));
                 switch(kill)
@@ -374,6 +356,7 @@ RECEIVE:
 
                     default:
                         request->second.resize(0);
+                    case Kill::SERVER:
                         buffer.resize(0);
                         buffer.reserve(0);
                 }
