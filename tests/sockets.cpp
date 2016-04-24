@@ -8,12 +8,15 @@
 #include <iterator>
 #include <mutex>
 #include <thread>
+#include <string>
 
 const unsigned int chunkSize=1024;
 const unsigned int tranCount=768;
 const unsigned int socketCount=512;
 const unsigned int maxConc=64;
 const unsigned int seed=2006;
+
+std::string port;
 
 bool done;
 std::mutex doneMutex;
@@ -46,7 +49,7 @@ void client()
         // Any data waiting for us to recieve?
         do
         {
-            Fastcgipp::Socket socket=group.poll(false);
+            const Fastcgipp::Socket socket=group.poll(false);
             if(socket.valid())
             {
                 auto pair = buffers.find(socket);
@@ -128,8 +131,8 @@ void client()
                 unsigned int count = connects;
                 do
                 {
-                    Fastcgipp::Socket socket =
-                        group.connect("127.0.0.1", "23987");
+                    const Fastcgipp::Socket socket =
+                        group.connect("127.0.0.1", port.c_str());
                     if(!socket.valid())
                         FAIL_LOG("Unable to connect to server")
                     Buffer& buffer(buffers[socket]);
@@ -162,8 +165,7 @@ void client()
                     if(pair == buffers.end())
                         break;
 
-                    Fastcgipp::Socket& socket =
-                        const_cast<Fastcgipp::Socket&>(pair->first);
+                    const Fastcgipp::Socket& socket = pair->first;
                     Buffer& buffer = pair->second;
                     const ssize_t sent = socket.write(
                             &*buffer.send,
@@ -206,8 +208,8 @@ void server()
 
     Fastcgipp::SocketGroup group;
     serverGroup = &group;
-    if(!group.listen("127.0.0.1", "23987"))
-        FAIL_LOG("Unable to listen on 127.0.0.1:23987")
+    if(!group.listen("127.0.0.1", port.c_str()))
+        FAIL_LOG("Unable to listen")
     std::map<Fastcgipp::Socket, Buffer> buffers;
     std::unique_lock<std::mutex> lock(doneMutex);
     bool flushed;
@@ -224,8 +226,7 @@ void server()
         flushed = true;
         for(auto& pair: buffers)
         {
-            Fastcgipp::Socket& socket = 
-                const_cast<Fastcgipp::Socket&>(pair.first);
+            const Fastcgipp::Socket& socket = pair.first;
             Buffer& buffer = pair.second;
             
             if(socket.valid() && buffer.sending)
@@ -257,7 +258,7 @@ void server()
 
         // Any data waiting for us to receive?
         {
-            Fastcgipp::Socket socket=group.poll(flushed);
+            const Fastcgipp::Socket socket = group.poll(flushed);
             if(socket.valid())
             {
                 auto pair = buffers.find(socket);
@@ -334,6 +335,10 @@ unsigned int openfds()
 int main()
 {
     const auto initialFds = openfds();
+
+    std::random_device trueRand;
+    std::uniform_int_distribution<> portDist(2048, 65534);
+    port = std::to_string(portDist(trueRand));
 
     done=false;
     std::thread serverThread(server);
