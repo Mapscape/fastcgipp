@@ -16,9 +16,20 @@
 #include <condition_variable>
 #include <array>
 
+const unsigned int maxConnections=64;
+const unsigned int maxRequests=2024;
+
 const unsigned int seed = 2006;
 const size_t messageSize = 12314;
-const unsigned int echoers = 5;
+const unsigned int echoers = 1;
+unsigned int echos = 0;
+
+enum class Kill: char
+{
+    DONT = 0,
+    CLIENT = 1,
+    SERVER = 2
+};
 
 struct Echo
 {
@@ -41,11 +52,14 @@ void receive(
         Fastcgipp::Protocol::RequestId id,
         Fastcgipp::Message&& message)
 {
+    if(id.m_id != Fastcgipp::Protocol::badFcgiId)
     {
-        std::lock_guard<std::mutex> lock(echoMutex);
-        echoQueue.emplace(id, std::move(message));
+        {
+            std::lock_guard<std::mutex> lock(echoMutex);
+            echoQueue.emplace(id, std::move(message));
+        }
+        echoCv.notify_one();
     }
-    echoCv.notify_one();
 }
 
 Fastcgipp::Transceiver transceiver(receive);
@@ -53,7 +67,6 @@ Fastcgipp::Transceiver transceiver(receive);
 void echo()
 {
     std::mt19937 rd(seed);
-    std::bernoulli_distribution killIt(0.1);
     std::uniform_real_distribution<> extra(1.0, 4.0);
 
     std::unique_lock<std::mutex> lock(echoMutex);
@@ -65,23 +78,27 @@ void echo()
             Echo echo(std::move(echoQueue.front()));
             echoQueue.pop();
             lock.unlock();
-            
+
             size_t position = 0;
 
             while(position < echo.message.size)
             {
                 auto block = transceiver.requestWrite(
-                        size_t(echo.message.size*extra(rd)));
-                const size_t size = std::min(echo.message.size, block.m_size);
+                        size_t((echo.message.size-position)*extra(rd)));
+                const size_t size = std::min(echo.message.size-position, block.m_size);
                 std::copy(
-                        echo.message.data.get(),
-                        echo.message.data.get()+size,
+                        echo.message.data.get()+position,
+                        echo.message.data.get()+position+size,
                         block.m_data);
-                transceiver.commitWrite(
-                        block.m_size,
-                        echo.id.m_socket,
-                        killIt(rd));
                 position += size;
+                const Kill& killer=*(Kill*)(echo.message.data.get()
+                        +sizeof(Fastcgipp::Protocol::Header));
+                const bool kill =
+                    position<echo.message.size?false:killer==Kill::SERVER;
+                transceiver.commitWrite(
+                        size,
+                        echo.id.m_socket,
+                        kill);
             }
 
             lock.lock();
@@ -99,7 +116,12 @@ struct FullMessage
 
 int main()
 {
-    transceiver.listen("127.0.0.1", "23987");
+    std::random_device trueRand;
+    std::uniform_int_distribution<> portDist(2048, 65534);
+    const std::string port = std::to_string(portDist(trueRand));
+
+    if(!transceiver.listen("127.0.0.1", port.c_str()))
+        FAIL_LOG("Unable to listen")
     transceiver.start();
     echoTerminate = false;
     std::array<std::thread, echoers> threads;
@@ -111,83 +133,101 @@ int main()
 
     std::mt19937 rd(seed);
     std::bernoulli_distribution boolDist(0.5);
+    std::bernoulli_distribution nastyDist(0.0001);
     std::uniform_int_distribution<> requestDist(0, 65534);
+    std::discrete_distribution<> killDist({2, 1, 1});
 
     Fastcgipp::SocketGroup group;
-    const unsigned int maxConnections=128;
     unsigned int connections=0;
+    unsigned int requestCount=0;
 
-    std::map<Fastcgipp::Socket, std::vector<char>> buffers;
-    std::map<Fastcgipp::Protocol::RequestId, std::vector<char>> requests;
-    std::map<Fastcgipp::Protocol::RequestId, std::vector<char>>::iterator request;
+    typedef std::map<Fastcgipp::Socket, std::vector<char>> Buffers;
+    Buffers buffers;
+    typedef Fastcgipp::Protocol::Requests<std::vector<char>> Requests;
+    Requests requests;
+    Requests::iterator request;
 
-    while(connections<maxConnections || requests.size())
+    while(requestCount<maxRequests || requests.size())
     {
         // Should we sent data?
-        if(boolDist(rd))
+        if(!(requestCount>=maxRequests && requests.empty()) && boolDist(rd))
         {
             // Yes will send data
 
             // Should we make a new connection or use an old one?
-            if(connections==maxConnections || (requests.size() && boolDist(rd)))
+            if(connections>=maxConnections || requestCount>=maxRequests || (!requests.empty() && boolDist(rd)))
             {
                 // Let's use an old one
-                std::uniform_int_distribution<> dist(0, requests.size()-1);
                 request = requests.begin();
-                std::advance(request, dist(rd));
 
-                // Should we reuse the request or make a new one?
-                if(!request->second.empty() || boolDist(rd))
+                // Or maybe we should simulate a nasty killed connection?
+                if(requests.size()>=5 && nastyDist(rd))
                 {
-                    std::pair<
-                        std::map<
-                            Fastcgipp::Protocol::RequestId,
-                            std::vector<char>>::iterator,
-                        bool> pair;
-                    pair.second = false;
+                    const_cast<Fastcgipp::Socket&>(
+                            request->first.m_socket).close();
+                    --connections;
+                    auto range = requests.equal_range(request->first.m_socket);
+                    requests.erase(range.first, range.second);
+                    buffers.erase(request->first.m_socket);
+                    goto RECEIVE;
+                }
+
+                // Find a usefull request
+                while(request != requests.end())
+                {
+                    if(request->second.empty())
+                        break;
+
+                    const Kill& kill=*(Kill*)(request->second.data()
+                            +sizeof(Fastcgipp::Protocol::Header));
+                    if(requestCount<maxRequests && kill == Kill::DONT)
+                        break;
+                    ++request;
+                }
+
+                if(request == requests.end())
+                    goto RECEIVE;
+
+                // Should we reuse the request itself?
+                if(requestCount<maxRequests && !request->second.empty())
+                {
                     // A new request over the same connection
+                    std::pair<Requests::iterator, bool> pair;
+                    pair.second = false;
                     while(!pair.second)
                         pair = requests.insert(std::make_pair(
                                     Fastcgipp::Protocol::RequestId(
                                         requestDist(rd),
                                         request->first.m_socket),
                                     std::vector<char>()));
+                    requestCount++;
                     request = pair.first;
-                    request->second.reserve(messageSize);
-                    DEBUG_LOG("Making new request with id=" << request->first.m_id)
+                    request->second.reserve(sizeof(FullMessage));
                 }
-                else
-                {
-                    // Or maybe we should simulate a killed connection?
-                    if(boolDist(rd) && boolDist(rd) && boolDist(rd) && boolDist(rd))
-                    {
-                        DEBUG_LOG("Simulating a client side kill")
-                        const_cast<Fastcgipp::Socket&>(
-                                request->first.m_socket).close();
-                        continue;
-                    }
-
-                    DEBUG_LOG("Reusing request with id=" << request->first.m_id)
-                }
+                else if(!request->second.empty())
+                    FAIL_LOG("QUOI LE FUCK")
+                    //goto RECEIVE;
             }
             else
             {
+                auto socket = group.connect("127.0.0.1", port.c_str());
+                if(!socket.valid())
+                    FAIL_LOG("Couldn't connect")
+
                 // Let's make a new one
                 auto pair = requests.insert(std::make_pair(
                             Fastcgipp::Protocol::RequestId(
                                 requestDist(rd),
-                                group.connect(
-                                        "127.0.0.1",
-                                        "23987")),
+                                socket),
                             std::vector<char>()));
+                requestCount++;
                 if(pair.second)
                     request = pair.first;
                 else
                     FAIL_LOG("Couln't create a new connection")
 
-                request->second.reserve(messageSize);
+                request->second.reserve(sizeof(FullMessage));
                 ++connections;
-                DEBUG_LOG("Making new connection with id=" << request->first.m_id)
             }
             request->second.resize(sizeof(FullMessage));
             Fastcgipp::Protocol::Header& header = 
@@ -196,16 +236,46 @@ int main()
             header.contentLength = messageSize-51;
             header.paddingLength = 51;
 
+            Kill& kill=*(Kill*)(request->second.data()
+                    +sizeof(Fastcgipp::Protocol::Header));
+
+
+            kill = (Kill)killDist(rd);
+
+            if(kill == Kill::SERVER)
+            {
+                // Are we sharing this socket?
+                auto range = requests.equal_range(request->first.m_socket);
+                for(auto it = range.first; it != range.second; ++it)
+                    if(it != request)
+                    {
+                        kill = Kill::CLIENT;
+                        break;
+                    }
+            }
+
+            ssize_t sent=0;
             for(
                     auto i=request->second.cbegin();
-                    i<request->second.cend(); )
-                i += const_cast<Fastcgipp::Socket&>(
+                    i<request->second.cend(); 
+                    i += sent)
+            {
+                sent = const_cast<Fastcgipp::Socket&>(
                     request->first.m_socket).write(
                         &*i,
                         request->second.cend()-i);
+                if(sent<=0)
+                {
+                    if(i != request->second.cbegin())
+                        FAIL_LOG("A socket died while trying to send")
+                    goto RECEIVE;
+                }
+            }
         }
         else
         {
+            // We shall receive data
+RECEIVE:
             auto socket = group.poll(false);
             if(socket.valid())
             {
@@ -217,9 +287,26 @@ int main()
                 if(received < sizeof(Fastcgipp::Protocol::Header))
                 {
                     buffer.resize(sizeof(Fastcgipp::Protocol::Header));
-                    received += socket.read(
+                    const ssize_t read = socket.read(
                             buffer.data()+received,
                             buffer.size()-received);
+                    if(read<0)
+                    {
+                        if(received)
+                            FAIL_LOG("FACK")
+                        socket.close();
+                        --connections;
+                        auto range = requests.equal_range(socket);
+                        int distance = 0;
+                        for(auto it = range.first; it != range.second; ++it)
+                            ++distance;
+                        if(distance != 1)
+                            FAIL_LOG("Got a server side kill that affects multiple requests")
+                        requests.erase(range.first);
+                        buffers.erase(socket);
+                        continue;
+                    }
+                    received += read;
                     if(received < buffer.size())
                     {
                         buffer.resize(received);
@@ -227,71 +314,87 @@ int main()
                     }
                 }
 
-                Fastcgipp::Protocol::Header& header =
-                    *(Fastcgipp::Protocol::Header*)buffer.data();
-
-                buffer.reserve(
-                        +sizeof(Fastcgipp::Protocol::Header)
-                        +header.contentLength
-                        +header.paddingLength);
                 buffer.resize(
                         +sizeof(Fastcgipp::Protocol::Header)
-                        +header.contentLength
-                        +header.paddingLength);
-                received += socket.read(
+                        +((Fastcgipp::Protocol::Header*)buffer.data())->contentLength
+                        +((Fastcgipp::Protocol::Header*)buffer.data())->paddingLength);
+
+                Fastcgipp::Protocol::Header& header =
+                    *(Fastcgipp::Protocol::Header*)buffer.data();
+                buffer.reserve(buffer.size());
+                const ssize_t read = socket.read(
                         buffer.data()+received,
                         buffer.size()-received);
+                if(read<0)
+                    FAIL_LOG("FACK")
+                received += read;
                 if(received < buffer.size())
                 {
                     buffer.resize(received);
                     continue;
                 }
 
-                DEBUG_LOG("Get an echo with id=" << header.fcgiId << " and size=" << buffer.size())
-
                 auto request = requests.find(Fastcgipp::Protocol::RequestId(
                             header.fcgiId,
                             socket));
                 if(request == requests.end())
-                    FAIL_LOG("Got an echo that isn't in our requests")
+                    FAIL_LOG("Got an echo " << header.fcgiId << " that isn't in our requests")
                 if(request->second != buffer)
-                    FAIL_LOG("GOt an echo that doesn't match what we sent")
-            }
+                    FAIL_LOG("Got an echo that doesn't match what we sent")
 
-            // Clean up buffers
-            {
-                auto buffer=buffers.begin();
-
-                while(buffer != buffers.end())
+                bool shared=false;
                 {
-                    if(buffer->first.valid())
-                        ++buffer;
-                    else
-                        buffer = buffers.erase(buffer);
+                    auto range = requests.equal_range(socket);
+                    for(auto it = range.first; it != range.second; ++it)
+                        if(it != request)
+                        {
+                            shared=true;
+                            break;
+                        }
                 }
-            }
-            
-            // Clean up buffers
-            {
-                auto request=requests.begin();
-
-                while(request != requests.end())
+                
+                Kill kill=*(Kill*)(request->second.data()
+                        +sizeof(Fastcgipp::Protocol::Header));
+                switch(kill)
                 {
-                    if(request->first.m_socket.valid())
-                        ++request;
-                    else
-                        request = requests.erase(request);
+                    case Kill::CLIENT:
+                        if(shared)
+                        {
+                            buffer.resize(0);
+                            buffer.reserve(0);
+                        }
+                        else
+                        {
+                            --connections;
+                            socket.close();
+                            buffers.erase(socket);
+                        }
+                        requests.erase(request);
+                        break;
+
+                    default:
+                        request->second.resize(0);
+                        buffer.resize(0);
+                        buffer.reserve(0);
                 }
             }
         }
     }
 
+    if(group.size())
+        FAIL_LOG("Main loop finished but there are still active sockets " << group.size())
+    if(buffers.size())
+        FAIL_LOG("Main loop finished but there are still buffers")
+    if(requests.size())
+        FAIL_LOG("Main loop finished but there are still requests")
+
     transceiver.stop();
-    /*for(auto& request: requests)
-    {
-        if(!request.second.data.empty() || request.second.clientSocket.valid())
-            FAIL_LOG("A request is incomplete")
-    }*/
+
+    echoTerminate = true;
+    echoCv.notify_all();
+
+    for(std::thread& thread: threads)
+        thread.join();
 
     return 0;
 }
