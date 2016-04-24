@@ -2,7 +2,7 @@
  * @file       message.hpp
  * @brief      Defines the Message data structure.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 12, 2016
+ * @date       April 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -29,7 +29,7 @@
 #ifndef MESSAGE_HPP
 #define MESSAGE_HPP
 
-#include <memory>
+#include <vector>
 
 namespace Fastcgipp
 {
@@ -41,34 +41,27 @@ namespace Fastcgipp
      * and will be processed at a low level by the library. Any other type value
      * and the message will be passed up to the user code to be processed. The
      * data may contain any data that can be serialized into a raw character
-     * array.  The size obviously represents the exact size of the data section.
+     * array.
      */
     struct Message
     {
         Message(const int type_):
-            type(type_),
-            size(0)
+            type(type_)
         {}
 
         Message():
-            type(0),
-            size(0)
+            type(0)
         {}
 
         Message(Message&& x):
             type(x.type),
-            size(x.size),
             data(std::move(x.data))
-        {
-            x.size=0;
-        }
+        {}
+
         Message& operator=(Message&& x)
         {
             type=x.type;
-            size=x.size;
             data=std::move(x.data);
-
-            x.size=0;
             return *this;
         }
 
@@ -78,11 +71,8 @@ namespace Fastcgipp
         //! Type of message. A 0 means FastCGI record. Anything else is open.
         int type;
 
-        //! Size of the data section.
-        size_t size;
-
-        //! Pointer to the raw data being passed along with the message.
-        std::unique_ptr<char> data;
+        //! The raw data being passed along with the message.
+        std::vector<char> data;
     };
 }
 
