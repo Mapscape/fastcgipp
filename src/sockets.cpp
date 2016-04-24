@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 22, 2016
+ * @date       April 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -65,7 +65,7 @@ Fastcgipp::Socket::Socket(
     }
 }
 
-ssize_t Fastcgipp::Socket::read(char* buffer, size_t size)
+ssize_t Fastcgipp::Socket::read(char* buffer, size_t size) const
 {
     if(!valid())
         return -1;
@@ -87,7 +87,7 @@ ssize_t Fastcgipp::Socket::read(char* buffer, size_t size)
     return count;
 }
 
-ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size)
+ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size) const
 {
     if(!valid() || m_data->m_closing)
         return -1;
@@ -103,7 +103,7 @@ ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size)
     return count;
 }
 
-void Fastcgipp::Socket::close()
+void Fastcgipp::Socket::close() const
 {
     if(valid())
     {

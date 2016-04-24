@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 22, 2016
+ * @date       April 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -75,7 +75,7 @@ namespace Fastcgipp
      * only use valid() and the comparison operators across multiple threads.
      * </em>
      *
-     * @date    April 22, 2016
+     * @date    April 24, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Socket
@@ -174,7 +174,7 @@ namespace Fastcgipp
          *         returned the socket is no longer valid and all data has been
          *         received.
          */
-        ssize_t read(char* buffer, size_t size);
+        ssize_t read(char* buffer, size_t size) const;
 
         //! Try and write a chunk of data into the socket.
         /*!
@@ -195,7 +195,7 @@ namespace Fastcgipp
          * @return Actual number of bytes written from the buffer. A -1 means
          *         you can't actually write data to the socket anymore.
          */
-        ssize_t write(const char* buffer, size_t size);
+        ssize_t write(const char* buffer, size_t size) const;
 
         //! We need this to allow the socket objects to be in sorted containers.
         bool operator<(const Socket& x) const
@@ -262,7 +262,7 @@ namespace Fastcgipp
          *
          * If the socket is already invalid, calling this does nothing.
          */
-        void close();
+        void close() const;
 
         //! Creates an invalid socket with no original.
         Socket();
