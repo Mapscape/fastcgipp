@@ -73,24 +73,24 @@ void Fastcgipp::Transceiver::SendBuffer::commitWrite(
         const Socket& socket,
         bool kill)
 {
-    std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-    m_write->m_end += size;
-    if(minWriteBlockSize>(m_write->m_data.get()+Chunk::size-m_write->m_end))
+    if(socket.valid())
     {
-        // We've got less than a minimum write block size left in this chunk
-        ++m_write;
-        if(m_write == m_chunks.end())
-        {
-            // We were on the last chunk!
-            m_chunks.push_back(Chunk());
-            --m_write;
-        }
-    }
-    if(!socket.valid())
-        FAIL_LOG("Socket invalid in commit")
-    m_frames.push(Frame(size, kill, socket));
+        std::lock_guard<std::mutex> lock(m_bufferMutex);
 
+        m_write->m_end += size;
+        if(minWriteBlockSize>(m_write->m_data.get()+Chunk::size-m_write->m_end))
+        {
+            // We've got less than a minimum write block size left in this chunk
+            ++m_write;
+            if(m_write == m_chunks.end())
+            {
+                // We were on the last chunk!
+                m_chunks.push_back(Chunk());
+                --m_write;
+            }
+        }
+        m_frames.push(Frame(size, kill, socket));
+    }
     m_writeLock.unlock();
 }
 
