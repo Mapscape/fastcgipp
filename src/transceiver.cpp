@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 23, 2016
+ * @date       April 24, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -31,67 +31,36 @@
 #include "fastcgi++/log.hpp"
 bool Fastcgipp::Transceiver::transmit()
 {
+    std::unique_ptr<Record> record;
+
     while(!m_sendBuffer.empty())
-    {{
-        SendBuffer::ReadBlock sendBlock(m_sendBuffer.requestRead());
-        const ssize_t sent = sendBlock.m_socket.write(
-                sendBlock.m_data,
-                sendBlock.m_size);
-        if(sent<0)
+    {
         {
-            m_sendBuffer.free(sendBlock.m_size);
-            continue;
+            std::lock_guard<std::mutex> lock(m_sendBufferMutex);
+            record = std::move(m_sendBuffer.front());
+            m_sendBuffer.pop_front();
         }
-        m_sendBuffer.free(sent);
-        if((size_t)sent != sendBlock.m_size)
-            return false;;
-    }}
+
+        const ssize_t sent = record->socket.write(
+                &*record->read,
+                record->data.cend()-record->read);
+        if(sent>=0)
+        {
+            record->read += sent;
+            if(record->read != record->data.cend())
+            {
+                {
+                    std::lock_guard<std::mutex> lock(m_sendBufferMutex);
+                    m_sendBuffer.push_front(std::move(record));
+                }
+                return false;
+            }
+            if(record->kill)
+                record->socket.close();
+        }
+    }
 
     return true;
-}
-
-Fastcgipp::WriteBlock Fastcgipp::Transceiver::SendBuffer::requestWrite(
-        size_t size)
-{
-    m_writeLock.lock();
-    std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-    return WriteBlock(
-            m_write->m_end,
-            std::min(
-                size,
-                (size_t)(
-                    m_write->m_data.get()
-                    +Chunk::size
-                    -m_write->m_end)
-                )
-            );
-}
-
-void Fastcgipp::Transceiver::SendBuffer::commitWrite(
-        size_t size,
-        const Socket& socket,
-        bool kill)
-{
-    if(socket.valid())
-    {
-        std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-        m_write->m_end += size;
-        if(minWriteBlockSize>(m_write->m_data.get()+Chunk::size-m_write->m_end))
-        {
-            // We've got less than a minimum write block size left in this chunk
-            ++m_write;
-            if(m_write == m_chunks.end())
-            {
-                // We were on the last chunk!
-                m_chunks.push_back(Chunk());
-                --m_write;
-            }
-        }
-        m_frames.push(Frame(size, kill, socket));
-    }
-    m_writeLock.unlock();
 }
 
 void Fastcgipp::Transceiver::handler()
@@ -130,46 +99,6 @@ void Fastcgipp::Transceiver::start()
     }
 }
 
-void Fastcgipp::Transceiver::SendBuffer::free(size_t size)
-{
-    std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-    m_read += size;
-    if(m_write != m_chunks.begin() && m_read >= m_chunks.begin()->m_end)
-    {
-        // We have read everything out of the first chunk
-        if(m_write == --m_chunks.end())
-        {
-            // We are currently writing to the last chunk so we'll need a new
-            // chunk at the end of the buffer so let us move the fully read
-            // first chunk to the end
-            m_chunks.begin()->m_end = m_chunks.begin()->m_data.get();
-            m_chunks.splice(
-                    m_chunks.end(),
-                    m_chunks,
-                    m_chunks.begin());
-        }
-        else
-        {
-            // We don't need this first chunk at all anymore. Free it up.
-            m_chunks.pop_front();
-        }
-
-        // Of course set the read pointer to the start of the next chunk
-        m_read = m_chunks.begin()->m_data.get();
-    }
-
-    m_frames.front().m_size -= size;
-    if(m_frames.front().m_size == 0)
-    {
-        // We've read out a full frames worth of data
-        if(m_frames.front().m_close)
-            m_frames.front().m_socket.close();
-
-        m_frames.pop();
-    }
-}
-
 Fastcgipp::Transceiver::Transceiver(
         const std::function<void(Protocol::RequestId, Message&&)> sendMessage):
     m_sendMessage(sendMessage)
@@ -180,63 +109,63 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
 {
     if(socket.valid())
     {
-        Message& messageBuffer=m_receiveBuffers[socket].message;
-        Protocol::Header& headerBuffer=m_receiveBuffers[socket].header;
+        std::vector<char>& buffer=m_receiveBuffers[socket];
+        size_t received = buffer.size();
 
-        ssize_t actual;
-        // Are we in the process of recieving some part of a frame?
-        if(!messageBuffer.data)
+        // Are we receiving a header?
+        if(received < sizeof(Protocol::Header))
         {
-            // Are we recieving a partial header or new? We are using
-            // messageBuffer.size to indicate where we are in the header's
-            // reception.
-            actual=socket.read(
-                    (char*)&headerBuffer+messageBuffer.size,
-                    sizeof(Protocol::Header)-messageBuffer.size);
-            if(actual<0)
+            if(buffer.empty())
+                buffer.reserve(sizeof(Protocol::Header));
+            buffer.resize(sizeof(Fastcgipp::Protocol::Header));
+
+            const ssize_t read = socket.read(
+                    buffer.data()+received,
+                    buffer.size()-received);
+            if(read<0)
             {
                 cleanupSocket(socket);
                 return;
             }
-
-            messageBuffer.size += actual;
-
-            if(messageBuffer.size != sizeof(Protocol::Header))
+            received += read;
+            if(received < buffer.size())
+            {
+                buffer.resize(received);
                 return;
-
-            messageBuffer.data.reset(new char[
-                    sizeof(Protocol::Header)
-                    +headerBuffer.contentLength
-                    +headerBuffer.paddingLength]);
-            std::copy(
-                    (const char*)(&headerBuffer),
-                    (const char*)(&headerBuffer)+sizeof(Protocol::Header),
-                    messageBuffer.data.get());
+            }
         }
 
-        const Protocol::Header& header=
-            *(const Protocol::Header*)messageBuffer.data.get();
-        const size_t needed=
-            header.contentLength
-            +header.paddingLength
-            +sizeof(Protocol::Header)
-            -messageBuffer.size;
+        buffer.resize(
+                +sizeof(Fastcgipp::Protocol::Header)
+                +((Fastcgipp::Protocol::Header*)buffer.data())->contentLength
+                +((Fastcgipp::Protocol::Header*)buffer.data())->paddingLength);
+        buffer.reserve(buffer.size());
 
-        actual=socket.read(
-                messageBuffer.data.get()+messageBuffer.size,
-                needed);
-        if(actual<0)
+        Fastcgipp::Protocol::Header& header =
+            *(Fastcgipp::Protocol::Header*)buffer.data();
+
+        const ssize_t read = socket.read(
+                buffer.data()+received,
+                buffer.size()-received);
+
+        if(read<0)
         {
             cleanupSocket(socket);
             return;
         }
-        messageBuffer.size += actual;
+        received += read;
+        if(received < buffer.size())
+        {
+            buffer.resize(received);
+            return;
+        }
 
-        // Did we recieve a full frame?
-        if((size_t)actual==needed)
-            m_sendMessage(
-                    Protocol::RequestId(header.fcgiId, socket),
-                    std::move(messageBuffer));
+        Message message;
+        message.data.swap(buffer);
+
+        m_sendMessage(
+                Protocol::RequestId(header.fcgiId, socket),
+                std::move(message));
     }
     else
         cleanupSocket(socket);
@@ -250,12 +179,18 @@ void Fastcgipp::Transceiver::cleanupSocket(const Socket& socket)
             Message());
 }
 
-Fastcgipp::Transceiver::SendBuffer::ReadBlock
-Fastcgipp::Transceiver::SendBuffer::requestRead()
+void Fastcgipp::Transceiver::send(
+        const Socket& socket,
+        std::vector<char>&& data,
+        bool kill)
 {
-    std::lock_guard<std::mutex> lock(m_bufferMutex);
-    return ReadBlock(
-            m_read,
-            m_frames.front().m_size,
-            m_frames.front().m_socket);
+    std::unique_ptr<Record> record(new Record(
+                socket,
+                std::move(data),
+                kill));
+    {
+        std::lock_guard<std::mutex> lock(m_sendBufferMutex);
+        m_sendBuffer.push_back(std::move(record));
+    }
+    m_sockets.wake();
 }
