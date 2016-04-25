@@ -2,7 +2,7 @@
  * @file       protocol.cpp
  * @brief      Defines everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 12, 2016
+ * @date       April 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -30,52 +30,53 @@
 #include "fastcgi++/config.h"
 
 bool Fastcgipp::Protocol::processParamHeader(
-        const char* data,
-        size_t dataSize,
-        const char*& name,
-        size_t& nameSize,
-        const char*& value,
-        size_t& valueSize)
+        std::vector<char>::const_iterator data,
+        const std::vector<char>::const_iterator dataEnd,
+        std::vector<char>::const_iterator& name,
+        std::vector<char>::const_iterator& value,
+        std::vector<char>::const_iterator& end)
 {
-    if(dataSize < 1)
+    size_t nameSize;
+    size_t valueSize;
+
+    if(data>=dataEnd)
         return false;
     if(*data & 0x80)
     {
-        if(dataSize < 4)
-            return false;
-        dataSize -= 4;
+        const auto size=data;
+        data += sizeof(uint32_t);
 
-        nameSize=BigEndian<uint32_t>::read(data) & 0x7fffffff;
-        data+=sizeof(uint32_t);
+        if(data>dataEnd)
+            return false;
+
+        nameSize=BigEndian<uint32_t>::read(&*size) & 0x7fffffff;
     }
     else
-    {
-        dataSize -= 1;
         nameSize=*data++;
-    }
 
-    if(dataSize < 1)
+    if(data>=dataEnd)
         return false;
     if(*data & 0x80)
     {
-        if(dataSize < 4)
-            return false;
-        dataSize -= 4;
+        const auto size=data;
+        data += sizeof(uint32_t);
 
-        valueSize=BigEndian<uint32_t>::read(data) & 0x7fffffff;
-        data+=sizeof(uint32_t);
+        if(data>dataEnd)
+            return false;
+
+        valueSize=BigEndian<uint32_t>::read(&*size) & 0x7fffffff;
     }
     else
-    {
         valueSize=*data++;
-        dataSize -= 1;
-    }
 
-    if(dataSize < nameSize+valueSize)
+    name = data;
+    value = name+nameSize;
+    end = value+valueSize;
+
+    if(end>dataEnd)
         return false;
-    name=data;
-    value=name+nameSize;
-    return true;
+    else
+        return true;
 }
 
 const Fastcgipp::Protocol::ManagementReply<14, 2>

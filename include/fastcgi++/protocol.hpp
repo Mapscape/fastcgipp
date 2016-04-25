@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <map>
+#include <vector>
 
 #include "fastcgi++/message.hpp"
 #include "fastcgi++/sockets.hpp"
@@ -353,32 +354,32 @@ namespace Fastcgipp
         //! Process the body of a FastCGI record of type RecordType::PARAMS
         /*!
          * Takes the body of a FastCGI record of type RecordType::PARAMS and
-         * parses it. You end up with a pointer/size for both the name and value
-         * of the parameter.
+         * parses it. You end up with iterators giving you both the name and
+         * value of the parameter.
          *
          * The return value indicates whether or not there is actually
          * sufficient data in the array to to read both the sizes and the values
          * themselves.
          *
-         * @param[in] data Pointer to the record body
-         * @param[in] dataSize Size of data pointed to by data
-         * @param[out] name Reference to a pointer that will be pointed to the
-         *                  first byte of the parameter name
-         * @param[out] nameSize Reference to a value to will be given the size
-         *                      in bytes of the parameter name
-         * @param[out] value Reference to a pointer that will be pointed to the
-         *                   first byte of the parameter value
-         * @param[out] valueSize Reference to a value to will be given the size
-         *                       in bytes of the parameter value
+         * @param[in] data Iterator to the first byte of the record body
+         * @param[in] dataEnd Iterator to 1+ the last byte of the record body
+         * @param[out] name Reference to an iterator that will be pointed to the
+         *                  first byte of the parameter name. If false is
+         *                  returned this value is undefined.
+         * @param[out] value Reference to an iterator that will be pointed to
+         *                   the first byte of the parameter value. If false is
+         *                   returned this value is undefined.
+         * @param[out] end Reference to an iterator that will be pointed to 1+
+         *                 the last byte of the parameter value. If false is
+         *                 returned this value is undefined.
          * @return False if out of bounds. True otherwise.
          */
         bool processParamHeader(
-                const char* data,
-                size_t dataSize,
-                const char*& name,
-                size_t& nameSize,
-                const char*& value,
-                size_t& valueSize);
+                std::vector<char>::const_iterator data,
+                const std::vector<char>::const_iterator dataEnd,
+                std::vector<char>::const_iterator& name,
+                std::vector<char>::const_iterator& value,
+                std::vector<char>::const_iterator& end);
 
         //! For the reply of FastCGI management records
         /*!
