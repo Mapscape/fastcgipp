@@ -37,15 +37,15 @@
 #include "fastcgi++/http.hpp"
 
 
-void Fastcgipp::Http::charToString(
-        const char* start,
-        const char* end,
+void Fastcgipp::Http::vecToString(
+        std::vector<char>::const_iterator start,
+        std::vector<char>::const_iterator end,
         std::wstring& string)
 {
     std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
     try
     {
-        string = converter.from_bytes(start, end);
+        string = converter.from_bytes(&*start, &*end);
     }
     catch(const std::range_error& e)
     {
@@ -135,53 +135,51 @@ InputIt Fastcgipp::Http::percentEscapedToRealBytes(
 }
 
 template void Fastcgipp::Http::Environment<char>::fill(
-        const char* start,
-        const char* end);
+        std::vector<char>::const_iterator data,
+        const std::vector<char>::const_iterator dataEnd);
 template void Fastcgipp::Http::Environment<wchar_t>::fill(
-        const char* start,
-        const char* end);
+        std::vector<char>::const_iterator data,
+        const std::vector<char>::const_iterator dataEnd);
 template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
-        const char* start,
-        const char* end)
+        std::vector<char>::const_iterator data,
+        const std::vector<char>::const_iterator dataEnd)
 {
-    size_t nameSize;
-    size_t valueSize;
-    const char* name;
-    const char* value;
+    std::vector<char>::const_iterator name,
+    std::vector<char>::const_iterator value,
+    std::vector<char>::const_iterator end,
     while(Protocol::processParamHeader(
-            start,
-            end-start,
+            data,
+            dataEnd,
             name,
-            nameSize,
             value,
-            valueSize))
+            end))
     {
-        switch(nameSize)
+        switch(value-name)
         {
         case 9:
-            if(!memcmp(name, "HTTP_HOST", 9))
-                charToString(value, value+valueSize, host);
-            else if(!memcmp(name, "PATH_INFO", 9))
+            if(!memcmp(&*name, "HTTP_HOST", 9))
+                vecToString(value, end, host);
+            else if(!memcmp(&*name, "PATH_INFO", 9))
             {
-                std::unique_ptr<char> buffer(new char[valueSize]);
+                std::vector<char> buffer(end-value);
                 int size=-1;
                 for(
-                        const char* source=value;
-                        source<value+valueSize+1;
+                        auto source=value;
+                        source<=end;
                         ++source, ++size)
                 {
-                    if(*source == '/' || source == value+valueSize)
+                    if(*source == '/' || source == end)
                     {
                         if(size > 0)
                         {
-                            percentEscapedToRealBytes(
+                            const auto bufferEnd = percentEscapedToRealBytes(
                                     source-size,
                                     source,
-                                    buffer.get());
+                                    buffer.begin());
                             pathInfo.push_back(std::basic_string<charT>());
-                            charToString(
-                                    buffer.get(),
-                                    buffer.get()+size,
+                            vecToString(
+                                    buffer.cbegin(),
+                                    bufferEnd,
                                     pathInfo.back());
                         }
                         size=-1;
@@ -190,30 +188,30 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             }
             break;
         case 11:
-            if(!memcmp(name, "HTTP_ACCEPT", 11))
-                charToString(value, value+valueSize, acceptContentTypes);
-            else if(!memcmp(name, "HTTP_COOKIE", 11))
-                decodeUrlEncoded(value, value+valueSize, cookies, ';');
-            else if(!memcmp(name, "SERVER_ADDR", 11))
-                serverAddress.assign(value, value+valueSize);
-            else if(!memcmp(name, "REMOTE_ADDR", 11))
-                remoteAddress.assign(value, value+valueSize);
-            else if(!memcmp(name, "SERVER_PORT", 11))
-                serverPort=atoi(value, value+valueSize);
-            else if(!memcmp(name, "REMOTE_PORT", 11))
-                remotePort=atoi(value, value+valueSize);
-            else if(!memcmp(name, "SCRIPT_NAME", 11))
-                charToString(value, value+valueSize, scriptName);
-            else if(!memcmp(name, "REQUEST_URI", 11))
-                charToString(value, value+valueSize, requestUri);
+            if(!memcmp(&*name, "HTTP_ACCEPT", 11))
+                vecToString(value, end, acceptContentTypes);
+            else if(!memcmp(&*name, "HTTP_COOKIE", 11))
+                decodeUrlEncoded(value, end, cookies, ';');
+            else if(!memcmp(&*name, "SERVER_ADDR", 11))
+                serverAddress.assign(&*value, &*end);
+            else if(!memcmp(&*name, "REMOTE_ADDR", 11))
+                remoteAddress.assign(&*value, &*end);
+            else if(!memcmp(&*name, "SERVER_PORT", 11))
+                serverPort=atoi(&*value, &*end);
+            else if(!memcmp(&*name, "REMOTE_PORT", 11))
+                remotePort=atoi(&*value, &*end);
+            else if(!memcmp(&*name, "SCRIPT_NAME", 11))
+                vecToString(value, end, scriptName);
+            else if(!memcmp(&*name, "REQUEST_URI", 11))
+                vecToString(value, end, requestUri);
             break;
         case 12:
-            if(!memcmp(name, "HTTP_REFERER", 12) && valueSize)
-                charToString(value, value+valueSize, referer);
+            if(!memcmp(&*name, "HTTP_REFERER", 12))
+                vecToString(value, end, referer);
             else if(!memcmp(name, "CONTENT_TYPE", 12))
             {
-                const char* end=(char*)memchr(value, ';', valueSize);
-                charToString(
+                auto end=(char*)memchr(value, ';', value);
+                vecToString(
                         value,
                         end?end:value+valueSize,
                         contentType);
@@ -235,7 +233,7 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             break;
         case 13:
             if(!memcmp(name, "DOCUMENT_ROOT", 13))
-                charToString(value, value+valueSize, root);
+                vecToString(value, value+valueSize, root);
             break;
         case 14:
             if(!memcmp(name, "REQUEST_METHOD", 14))
@@ -292,7 +290,7 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             break;
         case 15:
             if(!memcmp(name, "HTTP_USER_AGENT", 15))
-                charToString(value, value+valueSize, userAgent);
+                vecToString(value, value+valueSize, userAgent);
             else if(!memcmp(name, "HTTP_KEEP_ALIVE", 15))
                 keepAlive=atoi(value, value+valueSize);
             break;
@@ -302,11 +300,11 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             break;
         case 19:
             if(!memcmp(name, "HTTP_ACCEPT_CHARSET", 19))
-                charToString(value, value+valueSize, acceptCharsets);
+                vecToString(value, value+valueSize, acceptCharsets);
             break;
         case 20:
             if(!memcmp(name, "HTTP_ACCEPT_LANGUAGE", 20))
-                charToString(value, value+valueSize, acceptLanguages);
+                vecToString(value, value+valueSize, acceptLanguages);
             break;
         case 22:
             if(!memcmp(name, "HTTP_IF_MODIFIED_SINCE", 22))
@@ -321,20 +319,20 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             }
             break;
         }
-        start = value+valueSize;
+        data = end;
     }
 }
 
 template void Fastcgipp::Http::Environment<char>::fillPostBuffer(
-        const char* data,
-        size_t size);
+        const std::vector<char>::const_iterator start,
+        const std::vector<char>::const_iterator end);
 template void Fastcgipp::Http::Environment<wchar_t>::fillPostBuffer(
-        const char* data,
-        size_t size);
+        const std::vector<char>::const_iterator start,
+        const std::vector<char>::const_iterator end);
 template<class charT>
 void Fastcgipp::Http::Environment<charT>::fillPostBuffer(
-        const char* data,
-        size_t size)
+        const std::vector<char>::const_iterator start,
+        const std::vector<char>::const_iterator end)
 {
     if(!m_postBuffer.size())
         m_postBuffer.reserve(contentLength);
@@ -342,8 +340,8 @@ void Fastcgipp::Http::Environment<charT>::fillPostBuffer(
     const size_t oldSize = m_postBuffer.size();
     m_postBuffer.resize(oldSize+size);
     std::copy(
-            data,
-            data+size,
+            start,
+            end,
             m_postBuffer.begin()+oldSize);
 }
 
@@ -510,17 +508,17 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                     if(nameEnd != m_postBuffer.cend())
                     {
                         std::basic_string<charT> name;
-                        charToString(&*nameStart, &*nameEnd, name);
+                        vecToString(&*nameStart, &*nameEnd, name);
 
                         if(contentTypeEnd != m_postBuffer.cend())
                         {
                             File<charT> file;
-                            charToString(
+                            vecToString(
                                     &*contentTypeStart,
                                     &*contentTypeEnd,
                                     file.contentType);
                             if(filenameEnd != m_postBuffer.cend())
-                                charToString(
+                                vecToString(
                                         &*filenameStart,
                                         &*filenameEnd,
                                         file.filename);
@@ -541,7 +539,7 @@ void Fastcgipp::Http::Environment<charT>::parsePostsMultipart()
                         else
                         {
                             std::basic_string<charT> value;
-                            charToString(&*bodyStart, &*bodyEnd, value);
+                            vecToString(&*bodyStart, &*bodyEnd, value);
                             posts.insert(std::make_pair(
                                         std::move(name),
                                         std::move(value)));
@@ -601,22 +599,22 @@ const size_t Fastcgipp::Http::SessionId::stringLength;
 const size_t Fastcgipp::Http::SessionId::size;
 
 template void Fastcgipp::Http::decodeUrlEncoded<char>(
-        const char* start,
-        const char* end,
+        std::vector<char>::const_iterator start,
+        std::vector<char>::const_iterator end,
         std::multimap<
             std::basic_string<char>,
             std::basic_string<char>>& output,
         const char fieldSeperator);
 template void Fastcgipp::Http::decodeUrlEncoded<wchar_t>(
-        const char* start,
-        const char* end,
+        std::vector<char>::const_iterator start,
+        std::vector<char>::const_iterator end,
         std::multimap<
             std::basic_string<wchar_t>,
             std::basic_string<wchar_t>>& output,
         const char fieldSeperator);
 template<class charT> void Fastcgipp::Http::decodeUrlEncoded(
-        const char* start,
-        const char* end,
+        std::vector<char>::const_iterator start,
+        std::vector<char>::const_iterator end,
         std::multimap<
             std::basic_string<charT>,
             std::basic_string<charT>>& output,
@@ -646,12 +644,12 @@ template<class charT> void Fastcgipp::Http::decodeUrlEncoded(
                         valueStart);
 
                 std::basic_string<charT> name;
-                charToString(&*nameStart, &*nameEnd, name);
+                vecToString(nameStart, nameEnd, name);
                 nameStart=byte+1;
                 nameEnd=data.end();
 
                 std::basic_string<charT> value;
-                charToString(&*valueStart, &*valueEnd, value);
+                vecToString(valueStart, valueEnd, value);
                 valueStart=data.end();
                 valueEnd=data.end();
 

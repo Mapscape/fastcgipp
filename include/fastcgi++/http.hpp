@@ -357,20 +357,24 @@ namespace Fastcgipp
              * the first character of the records body with size being it's
              * content length.
              *
-             * @param[in] start Pointer to the first byte of parameter data
-             * @param[in] end Pointer to 1+ the last byte of parameter data
+             * @param[in] data Start of parameter data
+             * @param[in] dataEnd 1+ the last byte of parameter data
              */
-            void fill(const char* start, const char* end);
+            void fill(
+                    std::vector<char>::const_iterator data,
+                    const std::vector<char>::const_iterator dataEnd);
 
             //! Consolidates POST data into a single buffer
             /*!
              * This function will take arbitrarily divided chunks of raw http
              * post data and consolidate them into m_postBuffer.
              *
-             * @param[in] data Pointer to the first byte of post data.
-             * @param[in] size Size of data in bytes.
+             * @param[in] start Start of post data.
+             * @param[in] end 1+ the last byte of post data
              */
-            void fillPostBuffer(const char* data, size_t size);
+            void fillPostBuffer(
+                    const std::vector<char>::const_iterator start,
+                    const std::vector<char>::const_iterator end);
 
             //! Attempts to parse the POST buffer
             /*!
@@ -418,15 +422,15 @@ namespace Fastcgipp
             std::vector<char> m_postBuffer;
         };
 
-        //! Convert a char string to a std::wstring
+        //! Convert a char vector to a std::wstring
         /*!
-         * @param[in] start First byte in char string
-         * @param[in] end 1+ last byte of the string (no null terminator)
+         * @param[in] start First byte in char vector
+         * @param[in] end 1+ last byte of the vector (no null terminator)
          * @param[out] string Reference to the wstring that should be modified
          */
-        void charToString(
-                const char* start,
-                const char* end,
+        void vecToString(
+                std::vector<char>::const_iterator start,
+                std::vector<char>::const_iterator end,
                 std::wstring& string);
 
         //! Convert a char string to a std::string
@@ -435,9 +439,9 @@ namespace Fastcgipp
          * @param[in] end 1+ last byte of the string (no null terminator)
          * @param[out] string Reference to the string that should be modified
          */
-        inline void charToString(
-                const char* start,
-                const char* end,
+        inline void vecToString(
+                std::vector<char>::const_iterator start,
+                std::vector<char>::const_iterator end,
                 std::string& string)
         {
             string.assign(start, end);
@@ -466,8 +470,8 @@ namespace Fastcgipp
          * @param[in] fieldSeparator Character that signifies field separation
          */
         template<class charT> void decodeUrlEncoded(
-                const char* start,
-                const char* end,
+                std::vector<char>::const_iterator start,
+                std::vector<char>::const_iterator end,
                 std::multimap<
                     std::basic_string<charT>,
                     std::basic_string<charT>>& output,
