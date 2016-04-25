@@ -58,7 +58,7 @@ namespace Fastcgipp
          * @tparam charT Type of character to use in the value string (char or
          *               wchar_t)
          *
-         * @date    March 11, 2016
+         * @date    April 25, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         template<class charT> struct File
@@ -69,45 +69,17 @@ namespace Fastcgipp
             //! Content Type
             std::basic_string<charT> contentType;
 
-            //! Pointer to file data
-            const char* data() const
-            {
-                return m_data.get();
-            }
-
-            //! Size of file data
-            size_t size() const
-            {
-                return m_size;
-            }
-
-            //! Release the file data.
-            char* release() const
-            {
-                m_size=0;
-                return m_data.release();
-            }
-
-            File():
-                m_size(0)
-            {}
+            //! File data
+            mutable std::vector<char> data;
 
             //! Move constructor
             File(File&& x):
                 filename(std::move(x.filename)),
                 contentType(std::move(x.contentType)),
-                m_data(std::move(x.m_data)),
-                m_size(x.m_size)
+                data(std::move(x.data))
             {}
 
-        private:
-            //! Pointer to file data
-            mutable std::unique_ptr<char> m_data;
-
-            //! Size of data in bytes pointed to by data.
-            mutable size_t m_size;
-
-            template<class T> friend class Environment;
+            File() {}
         };
 
         //! The HTTP request method as an enumeration
@@ -214,7 +186,10 @@ namespace Fastcgipp
 
             bool operator==(const Address& x) const
             {
-                return std::memcmp(m_data.data(), x.m_data.data(), size)==0;
+                return std::equal(
+                        m_data.cbegin(),
+                        m_data.cend(),
+                        x.m_data.cbegin());
             }
 
             bool operator<(const Address& x) const
@@ -470,8 +445,8 @@ namespace Fastcgipp
          * @param[in] fieldSeparator Character that signifies field separation
          */
         template<class charT> void decodeUrlEncoded(
-                std::vector<char>::const_iterator start,
-                std::vector<char>::const_iterator end,
+                std::vector<char>::const_iterator data,
+                const std::vector<char>::const_iterator dataEnd,
                 std::multimap<
                     std::basic_string<charT>,
                     std::basic_string<charT>>& output,
@@ -491,14 +466,11 @@ namespace Fastcgipp
          * @param[out] destination Pointer to the section of memory to write the
          *                         converted string to
          * @return Iterator to +1 the last character written
-         * @tparam InputIt Input iterator used for the destination.
-         * @tparam OutputIt Output iterator used for the source.
          */
-        template<class InputIt, class OutputIt>
-        InputIt percentEscapedToRealBytes(
-                OutputIt start,
-                OutputIt end,
-                InputIt destination);
+        std::vector<char>::iterator percentEscapedToRealBytes(
+                std::vector<char>::const_iterator start,
+                std::vector<char>::const_iterator end,
+                std::vector<char>::iterator destination);
 
         //! List of characters in order for Base64 encoding.
         extern const std::array<const char, 64> base64Characters;
