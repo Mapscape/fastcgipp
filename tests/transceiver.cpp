@@ -23,6 +23,7 @@ const unsigned int seed = 2006;
 const size_t messageSize = 12314;
 const unsigned int echoers = 4;
 unsigned int echos = 0;
+std::string port;
 
 enum class Kill: char
 {
@@ -98,23 +99,8 @@ struct FullMessage
     char body[messageSize];
 };
 
-int main()
+void client()
 {
-    std::random_device trueRand;
-    std::uniform_int_distribution<> portDist(2048, 65534);
-    const std::string port = std::to_string(portDist(trueRand));
-
-    if(!transceiver.listen("127.0.0.1", port.c_str()))
-        FAIL_LOG("Unable to listen")
-    transceiver.start();
-    echoTerminate = false;
-    std::array<std::thread, echoers> threads;
-    for(std::thread& thread: threads)
-    {
-        std::thread newThread(echo);
-        thread.swap(newThread);
-    }
-
     std::mt19937 rd(seed);
     std::bernoulli_distribution boolDist(0.5);
     std::bernoulli_distribution nastyDist(0.0001);
@@ -190,6 +176,7 @@ int main()
                 else if(!request->second.empty())
                     FAIL_LOG("QUOI LE FUCK")
                     //goto RECEIVE;
+                // I guess we're reusing the request
             }
             else
             {
@@ -370,6 +357,26 @@ RECEIVE:
         FAIL_LOG("Main loop finished but there are still buffers")
     if(requests.size())
         FAIL_LOG("Main loop finished but there are still requests")
+}
+
+int main()
+{
+    std::random_device trueRand;
+    std::uniform_int_distribution<> portDist(2048, 65534);
+    port = std::to_string(portDist(trueRand));
+
+    if(!transceiver.listen("127.0.0.1", port.c_str()))
+        FAIL_LOG("Unable to listen")
+    transceiver.start();
+    echoTerminate = false;
+    std::array<std::thread, echoers> threads;
+    for(std::thread& thread: threads)
+    {
+        std::thread newThread(echo);
+        thread.swap(newThread);
+    }
+
+    client();
 
     transceiver.stop();
 

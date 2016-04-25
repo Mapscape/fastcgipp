@@ -84,7 +84,6 @@ void Fastcgipp::Transceiver::stop()
         m_stop=true;
         m_sockets.accept(false);
         m_thread.join();
-        m_sockets.accept(true);
     }
 }
 
@@ -95,6 +94,7 @@ void Fastcgipp::Transceiver::start()
     {
         m_stop=false;
         std::thread thread(&Fastcgipp::Transceiver::handler, this);
+        m_sockets.accept(true);
         m_thread.swap(thread);
     }
 }
