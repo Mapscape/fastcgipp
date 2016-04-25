@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 24, 2016
+ * @date       April 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -26,8 +26,8 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
 *******************************************************************************/
 
-#ifndef TRANSCEIVER_HPP
-#define TRANSCEIVER_HPP
+#ifndef FASTCGIPP_TRANSCEIVER_HPP
+#define FASTCGIPP_TRANSCEIVER_HPP
 
 #include <map>
 #include <list>

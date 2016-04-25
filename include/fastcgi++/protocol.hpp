@@ -2,7 +2,7 @@
  * @file       protocol.hpp
  * @brief      Declares everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 23, 2016
+ * @date       April 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -26,8 +26,8 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
 *******************************************************************************/
 
-#ifndef PROTOCOL_HPP
-#define PROTOCOL_HPP
+#ifndef FASTCGIPP_PROTOCOL_HPP
+#define FASTCGIPP_PROTOCOL_HPP
 
 #include <memory>
 #include <type_traits>

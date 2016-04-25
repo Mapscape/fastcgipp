@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 24, 2016
+ * @date       April 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -31,8 +31,8 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
 *******************************************************************************/
 
-#ifndef SOCKETS_HPP
-#define SOCKETS_HPP
+#ifndef FASTCGIPP_SOCKETS_HPP
+#define FASTCGIPP_SOCKETS_HPP
 
 #include <memory>
 #include <map>
