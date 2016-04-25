@@ -1,8 +1,8 @@
 /*!
  * @file       log.hpp
- * @brief      Declares the Fastcgipp debugging/logging mechanism
+ * @brief      Declares the Fastcgipp debugging/logging facilities
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 13, 2016
+ * @date       April 25, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -26,8 +26,8 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
 *******************************************************************************/
 
-#ifndef LOG_HPP
-#define LOG_HPP
+#ifndef FASTCGIPP_LOG_HPP
+#define FASTCGIPP_LOG_HPP
 
 #include "fastcgi++/config.h"
 
@@ -67,7 +67,12 @@ namespace Fastcgipp
         *::Fastcgipp::Logging::logstream << "[info] " << data << std::endl;\
     }}
 
-//! The intention here is to log any "errors" that are terminal and then exit.
+//! Log any "errors" that cannot be recovered from and then exit.
+/*!
+ * This should encompass all errors that should \a never happen, regardless of
+ * what the external conditions are. This also presumes that there is no
+ * possibility to recover from the error and we should simply terminate.
+ */
 #define FAIL_LOG(data) {\
     if(!::Fastcgipp::Logging::suppress)\
     { \
@@ -78,7 +83,12 @@ namespace Fastcgipp
     }}
 
 #if FASTCGIPP_LOG_LEVEL > 0
-//! The intention here is to log any "errors" that are terminal.
+//! Log any "errors" that can be recovered from.
+/*!
+ * This should encompass all errors that should \a never happen, regardless of
+ * what the external conditions are. This also presumes that there is a
+ * mechanism to recover from said error.
+ */
 #define ERROR_LOG(data) \
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
@@ -90,7 +100,12 @@ namespace Fastcgipp
 #endif
 
 #if FASTCGIPP_LOG_LEVEL > 1
-//! The intention here is to log any "errors" that are not terminal.
+//! Log any externally caused "errors"
+/*!
+ * We allocate this "log level" to errors that are caused by external factors
+ * like bad data from a web server. Once can't say that these errors should
+ * never happen since they are external controlled.
+ */
 #define WARNING_LOG(data) {\
     if(!::Fastcgipp::Logging::suppress)\
     { \
