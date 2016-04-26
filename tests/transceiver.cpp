@@ -249,8 +249,6 @@ RECEIVE:
             if(socket.valid())
             {
                 std::vector<char>& buffer=buffers[socket];
-                if(buffer.empty())
-                    buffer.reserve(sizeof(Fastcgipp::Protocol::Header));
                 size_t received = buffer.size();
 
                 if(received < sizeof(Fastcgipp::Protocol::Header))
@@ -276,28 +274,27 @@ RECEIVE:
                         continue;
                     }
                     received += read;
-                    if(received < buffer.size())
+                    if(received < sizeof(Fastcgipp::Protocol::Header))
                     {
                         buffer.resize(received);
                         continue;
                     }
                 }
 
-                buffer.resize(
-                        +sizeof(Fastcgipp::Protocol::Header)
-                        +((Fastcgipp::Protocol::Header*)buffer.data())->contentLength
-                        +((Fastcgipp::Protocol::Header*)buffer.data())->paddingLength);
+                const size_t recordSize = sizeof(Fastcgipp::Protocol::Header)
+                    +((Fastcgipp::Protocol::Header*)buffer.data())->contentLength
+                    +((Fastcgipp::Protocol::Header*)buffer.data())->paddingLength;
+                buffer.resize(recordSize);
 
                 Fastcgipp::Protocol::Header& header =
                     *(Fastcgipp::Protocol::Header*)buffer.data();
-                buffer.reserve(buffer.size());
                 const ssize_t read = socket.read(
                         buffer.data()+received,
                         buffer.size()-received);
                 if(read<0)
                     FAIL_LOG("FACK")
                 received += read;
-                if(received < buffer.size())
+                if(received < recordSize)
                 {
                     buffer.resize(received);
                     continue;
@@ -329,8 +326,8 @@ RECEIVE:
                     case Kill::CLIENT:
                         if(shared)
                         {
-                            buffer.resize(0);
-                            buffer.reserve(0);
+                            buffer.clear();
+                            buffer.shrink_to_fit();
                         }
                         else
                         {
@@ -344,8 +341,8 @@ RECEIVE:
                     default:
                         request->second.resize(0);
                     case Kill::SERVER:
-                        buffer.resize(0);
-                        buffer.reserve(0);
+                        buffer.clear();
+                        buffer.shrink_to_fit();
                 }
             }
         }

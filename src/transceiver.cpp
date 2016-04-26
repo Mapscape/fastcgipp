@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 24, 2016
+ * @date       April 26, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -115,9 +115,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
         // Are we receiving a header?
         if(received < sizeof(Protocol::Header))
         {
-            if(buffer.empty())
-                buffer.reserve(sizeof(Protocol::Header));
-            buffer.resize(sizeof(Fastcgipp::Protocol::Header));
+            buffer.resize(sizeof(Protocol::Header));
 
             const ssize_t read = socket.read(
                     buffer.data()+received,
@@ -128,21 +126,19 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
                 return;
             }
             received += read;
-            if(received < buffer.size())
+            if(received < sizeof(Protocol::Header))
             {
                 buffer.resize(received);
                 return;
             }
         }
 
-        buffer.resize(
-                +sizeof(Fastcgipp::Protocol::Header)
-                +((Fastcgipp::Protocol::Header*)buffer.data())->contentLength
-                +((Fastcgipp::Protocol::Header*)buffer.data())->paddingLength);
-        buffer.reserve(buffer.size());
+        const size_t recordSize = sizeof(Protocol::Header)
+            +((Protocol::Header*)buffer.data())->contentLength
+            +((Protocol::Header*)buffer.data())->paddingLength;
+        buffer.resize(recordSize);
 
-        Fastcgipp::Protocol::Header& header =
-            *(Fastcgipp::Protocol::Header*)buffer.data();
+        Protocol::Header& header = *(Protocol::Header*)buffer.data();
 
         const ssize_t read = socket.read(
                 buffer.data()+received,
@@ -154,7 +150,7 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
             return;
         }
         received += read;
-        if(received < buffer.size())
+        if(received < recordSize)
         {
             buffer.resize(received);
             return;

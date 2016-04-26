@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 25, 2016
+ * @date       April 26, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -328,7 +328,7 @@ void Fastcgipp::Http::Environment<charT>::fillPostBuffer(
         const std::vector<char>::const_iterator start,
         const std::vector<char>::const_iterator end)
 {
-    if(!m_postBuffer.size())
+    if(m_postBuffer.empty())
         m_postBuffer.reserve(contentLength);
     m_postBuffer.insert(m_postBuffer.end(), start, end);
 }
