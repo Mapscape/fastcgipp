@@ -9,6 +9,7 @@
 #include <mutex>
 #include <thread>
 #include <string>
+#include <condition_variable>
 
 const unsigned int chunkSize=1024;
 const unsigned int tranCount=768;
@@ -197,8 +198,12 @@ void client()
     serverGroup->wake();
 }
 
+std::condition_variable cv;
+std::mutex cvMutex;
+
 void server()
 {
+    std::unique_lock<std::mutex> cvLock(cvMutex);
     struct Buffer
     {
         std::vector<char> data;
@@ -210,6 +215,8 @@ void server()
     serverGroup = &group;
     if(!group.listen("127.0.0.1", port.c_str()))
         FAIL_LOG("Unable to listen")
+    cv.notify_all();
+    cvLock.unlock();
     std::map<Fastcgipp::Socket, Buffer> buffers;
     std::unique_lock<std::mutex> lock(doneMutex);
     bool flushed;
@@ -342,6 +349,10 @@ int main()
 
     done=false;
     std::thread serverThread(server);
+    {
+        std::unique_lock<std::mutex> cvLock(cvMutex);
+        cv.wait(cvLock);
+    }
     client();
     serverThread.join();
 
