@@ -1,8 +1,8 @@
 /*!
  * @file       fcgistream.hpp
- * @brief      Declares the fastcgi++ stream
+ * @brief      Declares the Fcgistream/buf stuff
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 1, 2016
+ * @date       May 2, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -30,182 +30,28 @@
 #define FASTCGIPP_FCGISTREAM_HPP
 
 #include "fastcgi++/protocol.hpp"
+#include "fastcgi++/webstreambuf.hpp"
 
-#include <map>
-#include <streambuf>
+#include <istream>
+#include <ostream>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
-	//! Stream manipulator for setting output encoding.
-	/*!
-	 * This simple stream manipulator can set the output encoding of Fcgistream
-	 * objects by
-	 *
-	 * @code
-     * out << Fastcgipp::encoding(Fastcgipp::encoding::HTML);
-     * @endcode
-     *
-	 * When output encoding is set to NONE, no character translation takes place.
-	 * HTML and URL encoding is described by the following table. 
-	 *
-	 * <b>HTML</b>
-	 * <table>
-	 * 	<tr>
-	 * 		<td><b>Input</b></td>
-	 * 		<td><b>Output</b></td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&quot;</td>
-	 * 		<td>&amp;quot;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&gt;</td>
-	 * 		<td>&amp;gt;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&lt;</td>
-	 * 		<td>&amp;lt;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&amp;</td>
-	 * 		<td>&amp;amp;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&apos;</td>
-	 * 		<td>&amp;apos;</td>
-	 * 	</tr>
-	 * </table>
-	 *
-	 * <b>URL</b>
-	 * <table>
-	 * 	<tr>
-	 * 		<td><b>Input</b></td>
-	 * 		<td><b>Output</b></td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>!</td>
-	 * 		<td>\%21</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>]</td>
-	 * 		<td>\%5D</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>[</td>
-	 * 		<td>\%5B</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>#</td>
-	 * 		<td>\%23</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>?</td>
-	 * 		<td>\%3F</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>/</td>
-	 * 		<td>\%2F</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>,</td>
-	 * 		<td>\%2C</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>$</td>
-	 * 		<td>\%24</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>+</td>
-	 * 		<td>\%2B</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>=</td>
-	 * 		<td>\%3D</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&amp;</td>
-	 * 		<td>\%26</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>\@</td>
-	 * 		<td>\%40</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>:</td>
-	 * 		<td>\%3A</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>;</td>
-	 * 		<td>\%3B</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>)</td>
-	 * 		<td>\%29</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>(</td>
-	 * 		<td>\%28</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>'</td>
-	 * 		<td>\%27</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>*</td>
-	 * 		<td>\%2A</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&lt;</td>
-	 * 		<td>\%3C</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&gt;</td>
-	 * 		<td>\%3E</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&quot;</td>
-	 * 		<td>\%22</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>*space*</td>
-	 * 		<td>\%20</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>\%</td>
-	 * 		<td>\%25</td>
-	 * 	</tr>
-	 * </table>
-     *
-     * @date    May 1, 2016
-     * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
-	 */
-	struct encoding
-	{
-        enum OutputEncoding
-        {
-            NONE,
-            HTML,
-            URL
-        };
-		const OutputEncoding type;
-		encoding(OutputEncoding type_): type(type_) {}
-	};
-
     //! Stream buffer class for output of client data through FastCGI
     /*!
-     * This class is derived from std::basic_streambuf<charT, traits>. It acts
-     * just the same as any stream buffer does with the added feature of the
-     * dump() function plus the ability to handle the encoding modifier.
+     * This class is derived from WebStreambuf<charT, traits>. It acts
+     * just the same with the added feature of the dump() function but properly
+     * flushes into FastCGI records.
      *
      * @tparam charT Character type (char or wchar_t)
      * @tparam traits Character traits
      *
-     * @date    May 1, 2016
+     * @date    May 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     template <class charT, class traits>
-    class Fcgibuf: public std::basic_streambuf<charT, traits>
+    class Fcgibuf: public WebStreambuf<charT, traits>
     {
     public:
         //! Constructor
@@ -224,20 +70,14 @@ namespace Fastcgipp
                     send_):
             m_id(id),
             m_type(type),
-            send(send_),
-            m_encoding(encoding::NONE)
+            send(send_)
         {
             setp(m_buffer, m_buffer+s_buffSize);
         }
 
         virtual ~Fcgibuf()
         {
-            try
-            {
-                sync();
-            }
-            catch(...)
-            {}
+            sync();
         }
 
         //! Dumps raw data directly into the FastCGI protocol
@@ -249,10 +89,7 @@ namespace Fastcgipp
          * @param[in] data Pointer to first byte of data to send
          * @param[in] size Size in bytes of data to be sent
          */
-        void dump(char* data, size_t size)
-        {
-            m_buffer.dump(data, size);
-        }
+        void dump(const char* data, size_t size);
 
         //! Dumps an input stream directly into the FastCGI protocol
         /*!
@@ -266,22 +103,10 @@ namespace Fastcgipp
          */
         void dump(std::basic_istream<char>& stream);
 
-        //! Set the output encoding of the stream buffer
-        void encoding(encoding::OutputEncoding enc)
-        {
-            m_encoding = enc;
-        }
-
     private:
         typedef typename std::basic_streambuf<charT, traits>::int_type int_type;
         typedef typename std::basic_streambuf<charT, traits>::traits_type traits_type;
         typedef typename std::basic_streambuf<charT, traits>::char_type char_type;
-
-        //! Needed for html encoding of stream data
-        static const std::map<charT, const std::basic_string<charT>> htmlCharacters;
-
-        //! Needed for url encoding of stream data
-        static const std::map<charT, const std::basic_string<charT>> urlCharacters;
 
         int_type overflow(int_type c = traits_type::eof());
 
@@ -289,8 +114,6 @@ namespace Fastcgipp
         {
             return emptyBuffer()?0:-1;
         }
-
-        std::streamsize xsputn(const char_type *s, std::streamsize n);
 
         //! Code converts, packages and transmits all data in the stream buffer
         bool emptyBuffer();
@@ -309,9 +132,6 @@ namespace Fastcgipp
 
         //! Function to actually send the record
         const std::function<void(const Socket&, std::vector<char>&&)> send;
-
-        //! Output encoding for stream buffer
-        encoding::OutputEncoding m_encoding;
     };
 
     //! Stream class for output of client data through FastCGI
@@ -322,7 +142,7 @@ namespace Fastcgipp
      * @tparam charT Character type (char or wchar_t)
      * @tparam traits Character traits
      *
-     * @date    May 1, 2016
+     * @date    May 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     template <class charT, class traits>
@@ -348,7 +168,7 @@ namespace Fastcgipp
          * @param[in] data Pointer to first byte of data to send
          * @param[in] size Size in bytes of data to be sent
          */
-        void dump(char* data, size_t size)
+        void dump(const char* data, size_t size)
         {
             m_buffer.dump(data, size);
         }
@@ -367,21 +187,10 @@ namespace Fastcgipp
             m_buffer.dump(stream);
         }
 
-        //! Set the output encoding of the stream
-        void encoding(encoding::OutputEncoding enc)
-        {
-            m_buffer.encoding(enc);
-        }
-
     private:
         //! Stream buffer object
         Fcgibuf<charT, traits> m_buffer;
     };
-
-	template<class charT, class Traits>
-    std::basic_ostream<charT, Traits>& operator<<(
-            std::basic_ostream<charT, Traits>& os,
-            const encoding& enc);
 }
 
 #endif

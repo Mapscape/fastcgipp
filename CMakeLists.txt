@@ -56,7 +56,8 @@ add_library(fastcgipp SHARED
     src/protocol.cpp
     src/sockets.cpp
     src/transceiver.cpp
-    src/fcgistream.cpp)
+    src/fcgistream.cpp
+    src/webstreambuf.cpp)
 install(TARGETS fastcgipp LIBRARY DESTINATION lib)
 
 # Install the config file
