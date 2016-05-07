@@ -88,12 +88,18 @@ add_dependencies(transceiver_test fastcgipp)
 target_link_libraries(transceiver_test PRIVATE fastcgipp)
 add_test("Fastcgipp::Transceiver" transceiver_test)
 
+add_executable(fcgistreambuf_test EXCLUDE_FROM_ALL tests/fcgistreambuf.cpp)
+add_dependencies(fcgistreambuf_test fastcgipp)
+target_link_libraries(fcgistreambuf_test PRIVATE fastcgipp)
+add_test("Fastcgipp::FcgiStreambuf" fcgistreambuf_test)
+
 add_custom_target(
     tests DEPENDS
     protocol_test
     http_test
     sockets_test
-    transceiver_test)
+    transceiver_test
+    fcgistreambuf_test)
 
 # And finally the documentation
 find_package(Doxygen)
