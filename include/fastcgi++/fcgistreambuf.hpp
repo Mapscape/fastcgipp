@@ -1,8 +1,8 @@
 /*!
- * @file       fcgistream.hpp
- * @brief      Declares the Fcgistream/buf stuff
+ * @file       fcgistreambuf.hpp
+ * @brief      Declares the FcgiStreambuf class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 2, 2016
+ * @date       May 6, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -26,8 +26,8 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
 *******************************************************************************/
 
-#ifndef FASTCGIPP_FCGISTREAM_HPP
-#define FASTCGIPP_FCGISTREAM_HPP
+#ifndef FASTCGIPP_FCGISTREAMBUF_HPP
+#define FASTCGIPP_FCGISTREAMBUF_HPP
 
 #include "fastcgi++/protocol.hpp"
 #include "fastcgi++/webstreambuf.hpp"
@@ -47,14 +47,19 @@ namespace Fastcgipp
      * @tparam charT Character type (char or wchar_t)
      * @tparam traits Character traits
      *
-     * @date    May 2, 2016
+     * @date    May 6, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     template <class charT, class traits>
-    class Fcgibuf: public WebStreambuf<charT, traits>
+    class FcgiStreambuf: public WebStreambuf<charT, traits>
     {
     public:
-        //! Constructor
+        FcgiStreambuf()
+        {
+            this->setp(m_buffer, m_buffer+s_buffSize);
+        }
+
+        //! Configure the stream buffer
         /*!
          * Sets FastCGI related member data necessary for operation of the
          * stream buffer.
@@ -63,19 +68,18 @@ namespace Fastcgipp
          * @param[in] type Type of output stream (ERR or OUT)
          * @param[in] send_ Function to send record with
          */
-        Fcgibuf(
+        void configure(
                 const Protocol::RequestId& id,
                 const Protocol::RecordType& type,
                 const std::function<void(const Socket&, std::vector<char>&&)>&
-                    send_):
-            m_id(id),
-            m_type(type),
-            send(send_)
+                    send_)
         {
-            setp(m_buffer, m_buffer+s_buffSize);
+            m_id = id;
+            m_type = type;
+            send = send_;
         }
 
-        virtual ~Fcgibuf()
+        virtual ~FcgiStreambuf()
         {
             sync();
         }
@@ -125,71 +129,13 @@ namespace Fastcgipp
         char_type m_buffer[s_buffSize];
 
         //! ID associated with the request
-        const Protocol::RequestId m_id;
+        Protocol::RequestId m_id;
 
         //! Type of output stream (ERR or OUT)
-        const Protocol::RecordType m_type;
+        Protocol::RecordType m_type;
 
         //! Function to actually send the record
-        const std::function<void(const Socket&, std::vector<char>&&)> send;
-    };
-
-    //! Stream class for output of client data through FastCGI
-    /*!
-     * This class is derived from std::basic_ostream<charT, traits>. It acts just
-     * the same as any stream does with the added feature of the dump() function.
-     *
-     * @tparam charT Character type (char or wchar_t)
-     * @tparam traits Character traits
-     *
-     * @date    May 2, 2016
-     * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
-     */
-    template <class charT, class traits>
-    class Fcgistream: public std::basic_ostream<charT, traits>
-    {
-    public:
-        //! Arguments passed directly to Fcgibuf::Fcgibuf()
-        Fcgistream(
-                const Protocol::RequestId& id,
-                const Protocol::RecordType& type,
-                const std::function<void(const Socket&, std::vector<char>&&)>&
-                    send):
-            std::basic_ostream<charT, traits>(&m_buffer),
-            m_buffer(id, type, send)
-        {}
-        
-        //! Dumps raw data directly into the FastCGI protocol
-        /*!
-         * This function exists as a mechanism to dump raw data out the stream
-         * bypassing the stream buffer or any code conversion mechanisms. If the
-         * user has any binary data to send, this is the function to do it with.
-         *
-         * @param[in] data Pointer to first byte of data to send
-         * @param[in] size Size in bytes of data to be sent
-         */
-        void dump(const char* data, size_t size)
-        {
-            m_buffer.dump(data, size);
-        }
-
-        //! Dumps an input stream directly into the FastCGI protocol
-        /*!
-         * This function exists as a mechanism to dump a raw input stream out
-         * this stream bypassing the stream buffer or any code conversion
-         * mechanisms. Typically this would be a filestream associated with an
-         * image or something. The stream is transmitted until an EOF.
-         *
-         * @param[in] stream Reference to input stream that should be transmitted.
-         */
-        void dump(std::basic_istream<char>& stream)
-        {
-            m_buffer.dump(stream);
-        }
-
-    private:
-        //! Stream buffer object
-        Fcgibuf<charT, traits> m_buffer;
+        std::function<void(const Socket&, std::vector<char>&&)> send;
     };
 }
 

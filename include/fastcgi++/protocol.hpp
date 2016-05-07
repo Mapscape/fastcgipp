@@ -2,7 +2,7 @@
  * @file       protocol.hpp
  * @brief      Declares everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 25, 2016
+ * @date       May 6, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -66,7 +66,7 @@ namespace Fastcgipp
          * associated with it, this class defines an ID value that encompasses
          * both.
          *
-         * @date    April 23, 2016
+         * @date    May 6, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         struct RequestId
@@ -91,11 +91,18 @@ namespace Fastcgipp
                 m_id(x.m_id)
             {}
 
+            RequestId& operator=(const RequestId& x)
+            {
+                m_socket = x.m_socket;
+                m_id = x.m_id;
+                return *this;
+            }
+
             //! Associated socket
-            const Socket m_socket;
+            Socket m_socket;
 
             //! Internal FastCGI request ID
-            const FcgiId m_id;
+            FcgiId m_id;
 
             //! We need this uglyness to find ranges based purely on the socket
             struct Less

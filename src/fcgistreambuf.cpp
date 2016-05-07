@@ -1,8 +1,8 @@
 /*!
- * @file       fcgistream.cpp
- * @brief      Defines the Fcgistream/buf stuff
+ * @file       fcgistreambuf.cpp
+ * @brief      Defines the FcgiStreambuf class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 2, 2016
+ * @date       May 6, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -26,16 +26,16 @@
 * along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
 *******************************************************************************/
 
-#include "fastcgi++/fcgistream.hpp"
+#include "fastcgi++/fcgistreambuf.hpp"
 #include "fastcgi++/log.hpp"
 
 #include <codecvt>
-
 #include <algorithm>
+
 namespace Fastcgipp
 {
     template <>
-    bool Fastcgipp::Fcgibuf<wchar_t, std::char_traits<wchar_t>>::emptyBuffer()
+    bool Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::emptyBuffer()
     {
         const std::codecvt_utf8<char_type> converter;
         std::codecvt_base::result result;
@@ -66,7 +66,7 @@ namespace Fastcgipp
             if(result == std::codecvt_base::error
                     || result == std::codecvt_base::noconv)
             {
-                ERROR_LOG("Fcgibuf code conversion failed")
+                ERROR_LOG("FcgiStreambuf code conversion failed")
                 pbump(-count);
                 return false;
             }
@@ -90,7 +90,7 @@ namespace Fastcgipp
     }
 
     template <>
-    bool Fastcgipp::Fcgibuf<char, std::char_traits<char>>::emptyBuffer()
+    bool Fastcgipp::FcgiStreambuf<char, std::char_traits<char>>::emptyBuffer()
     {
         std::vector<char> record;
         size_t count;
@@ -132,13 +132,13 @@ namespace Fastcgipp
     }
 }
 
-template Fastcgipp::Fcgibuf<char, std::char_traits<char>>::int_type
-Fastcgipp::Fcgibuf<char, std::char_traits<char>>::overflow(int_type c);
-template Fastcgipp::Fcgibuf<wchar_t, std::char_traits<wchar_t>>::int_type
-Fastcgipp::Fcgibuf<wchar_t, std::char_traits<wchar_t>>::overflow(int_type c);
+template Fastcgipp::FcgiStreambuf<char, std::char_traits<char>>::int_type
+Fastcgipp::FcgiStreambuf<char, std::char_traits<char>>::overflow(int_type c);
+template Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::int_type
+Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::overflow(int_type c);
 template <class charT, class traits>
-typename Fastcgipp::Fcgibuf<charT, traits>::int_type
-Fastcgipp::Fcgibuf<charT, traits>::overflow(int_type c)
+typename Fastcgipp::FcgiStreambuf<charT, traits>::int_type
+Fastcgipp::FcgiStreambuf<charT, traits>::overflow(int_type c)
 {
 	if(!emptyBuffer())
 		return traits_type::eof();
@@ -149,15 +149,15 @@ Fastcgipp::Fcgibuf<charT, traits>::overflow(int_type c)
 }
 
 template
-void Fastcgipp::Fcgibuf<char, std::char_traits<char>>::dump(
+void Fastcgipp::FcgiStreambuf<char, std::char_traits<char>>::dump(
         const char* data,
         size_t size);
 template
-void Fastcgipp::Fcgibuf<wchar_t, std::char_traits<wchar_t>>::dump(
+void Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::dump(
         const char* data,
         size_t size);
 template <class charT, class traits>
-void Fastcgipp::Fcgibuf<charT, traits>::dump(const char* data, size_t size)
+void Fastcgipp::FcgiStreambuf<charT, traits>::dump(const char* data, size_t size)
 {
     std::vector<char> record;
 
@@ -197,13 +197,13 @@ void Fastcgipp::Fcgibuf<charT, traits>::dump(const char* data, size_t size)
 }
 
 template
-void Fastcgipp::Fcgibuf<char, std::char_traits<char>>::dump(
+void Fastcgipp::FcgiStreambuf<char, std::char_traits<char>>::dump(
         std::basic_istream<char>& stream);
 template
-void Fastcgipp::Fcgibuf<wchar_t, std::char_traits<wchar_t>>::dump(
+void Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::dump(
         std::basic_istream<char>& stream);
 template <class charT, class traits>
-void Fastcgipp::Fcgibuf<charT, traits>::dump(std::basic_istream<char>& stream)
+void Fastcgipp::FcgiStreambuf<charT, traits>::dump(std::basic_istream<char>& stream)
 {
     std::vector<char> record;
     const ssize_t maxContentLength = 0xffff;
