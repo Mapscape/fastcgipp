@@ -49,7 +49,7 @@ namespace Fastcgipp
      * @date    May 6, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
-    template <class charT, class traits>
+    template <class charT, class traits = std::char_traits<charT>>
     class FcgiStreambuf: public WebStreambuf<charT, traits>
     {
     public:
@@ -70,7 +70,7 @@ namespace Fastcgipp
         void configure(
                 const Protocol::RequestId& id,
                 const Protocol::RecordType& type,
-                const std::function<void(const Socket&, std::vector<char>&&)>&
+                const std::function<void(const Socket&, std::vector<char>&&)>
                     send_)
         {
             m_id = id;

@@ -194,16 +194,16 @@ std::streamsize Fastcgipp::WebStreambuf<charT, traits>::xsputn(
                             mapping->second.cbegin(),
                             mapping->second.cend(),
                             this->pptr());
-                    s += mapping->second.size();
                     this->pbump(mapping->second.size());
+                    ++s;
                 }
             }
         }
 
 		if(s<end)
-            break;
-        else
 			this->sync();
+        else
+            break;
 	}
 
 	return n;

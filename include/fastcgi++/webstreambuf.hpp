@@ -202,7 +202,7 @@ namespace Fastcgipp
      * @date    May 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
-    template <class charT, class traits>
+    template <class charT, class traits = std::char_traits<charT>>
     class WebStreambuf: public std::basic_streambuf<charT, traits>
     {
         typedef typename std::basic_streambuf<charT, traits>::char_type char_type;

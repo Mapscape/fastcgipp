@@ -161,6 +161,8 @@ void Fastcgipp::FcgiStreambuf<charT, traits>::dump(const char* data, size_t size
 {
     std::vector<char> record;
 
+    emptyBuffer();
+
     while(size != 0)
     {
         record.resize(sizeof(Protocol::Header)
@@ -207,6 +209,8 @@ void Fastcgipp::FcgiStreambuf<charT, traits>::dump(std::basic_istream<char>& str
 {
     std::vector<char> record;
     const ssize_t maxContentLength = 0xffff;
+
+    emptyBuffer();
 
     do
     {
