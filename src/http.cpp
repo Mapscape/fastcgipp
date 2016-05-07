@@ -2,7 +2,7 @@
  * @file       http.cpp
  * @brief      Defines elements of the HTTP protocol
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 26, 2016
+ * @date       May 6, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -364,13 +364,7 @@ template<class charT> bool Fastcgipp::Http::Environment<charT>::parsePostBuffer(
         parsed = true;
     }
 
-    if(parsed)
-    {
-        clearPostBuffer();
-        return true;
-    }
-
-    return false;
+    return parsed;
 }
 
 template void Fastcgipp::Http::Environment<char>::parsePostsMultipart();

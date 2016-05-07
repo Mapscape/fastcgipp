@@ -1,171 +1,145 @@
-//! \file request.cpp Defines member functions for Fastcgipp::Fcgistream and Fastcgipp::Request
-/***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
-* under the terms of the GNU Lesser General Public License as  published   *
-* by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
-* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
-* You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
-****************************************************************************/
+/*!
+ * @file       request.cpp
+ * @brief      Defines the Request class
+ * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
+ * @date       May 6, 2016
+ * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
+ *             the GNU Lesser General Public License Version 3.
+ */
 
-#include <fastcgi++/request.hpp>
+/*******************************************************************************
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                             *
+*                                                                              *
+* This file is part of fastcgi++.                                              *
+*                                                                              *
+* fastcgi++ is free software: you can redistribute it and/or modify it under   *
+* the terms of the GNU Lesser General Public License as  published by the Free *
+* Software Foundation, either version 3 of the License, or (at your option)    *
+* any later version.                                                           *
+*                                                                              *
+* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT ANY *
+* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    *
+* FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for     *
+* more details.                                                                *
+*                                                                              *
+* You should have received a copy of the GNU Lesser General Public License     *
+* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
+*******************************************************************************/
+
+#include "fastcgi++/request.hpp"
+#include "fastcgi++/log.hpp"
 
 template void Fastcgipp::Request<char>::complete();
 template void Fastcgipp::Request<wchar_t>::complete();
 template<class charT> void Fastcgipp::Request<charT>::complete()
 {
-	using namespace Protocol;
 	out.flush();
 	err.flush();
 
-	Block buffer(transceiver->requestWrite(sizeof(Header)+sizeof(EndRequest)));
+    std::vector<char> record(
+            sizeof(Protocol::Header)+sizeof(Protocol::EndRequest));
 
-	Header& header=*(Header*)buffer.data;
+	Header& header=*(Protocol::Header*)buffer.data;
 	header.setVersion(Protocol::version);
-	header.setType(END_REQUEST);
-	header.setRequestId(id.fcgiId);
-	header.setContentLength(sizeof(EndRequest));
+	header.setType(Protocol::RecordType::END_REQUEST);
+	header.setRequestId(m_id.fcgiId);
+	header.setContentLength(sizeof(Protocol::EndRequest));
 	header.setPaddingLength(0);
 	
-	EndRequest& body=*(EndRequest*)(buffer.data+sizeof(Header));
+    Protocol::EndRequest& body = 
+        *(Protocol::EndRequest*)(buffer.data+sizeof(Header));
 	body.setAppStatus(0);
-	body.setProtocolStatus(REQUEST_COMPLETE);
+	body.setProtocolStatus(m_status);
 
-	transceiver->secureWrite(sizeof(Header)+sizeof(EndRequest), id, killCon);
+    m_send(m_id.m_socket, std::move(record), m_kill);
 }
 
-template bool Fastcgipp::Request<char>::handler();
-template bool Fastcgipp::Request<wchar_t>::handler();
-template<class charT> bool Fastcgipp::Request<charT>::handler()
+template bool Fastcgipp::Request<char>::handler(Message&& message);
+template bool Fastcgipp::Request<wchar_t>::handler(Message&& message);
+template<class charT> bool Fastcgipp::Request<charT>::handler(Message&& message)
 {
-	using namespace Protocol;
-	using namespace std;
+    if(message.type == 0)
+    {
+        const Protocol::Header& header=*(Protocol::Header*)message().data.get();
+        const auto body = message.data.cbegin()+sizeof(header);
+        const auto bodyEnd = bodyStart+header.contentLength;
 
-	try
-	{
-		if(!(role()==RESPONDER || role()==AUTHORIZER))
-		{
-			Block buffer(transceiver->requestWrite(sizeof(Header)+sizeof(EndRequest)));
-			
-			Header& header=*(Header*)buffer.data;
-			header.setVersion(Protocol::version);
-			header.setType(END_REQUEST);
-			header.setRequestId(id.fcgiId);
-			header.setContentLength(sizeof(EndRequest));
-			header.setPaddingLength(0);
-			
-			EndRequest& body=*(EndRequest*)(buffer.data+sizeof(Header));
-			body.setAppStatus(0);
-			body.setProtocolStatus(UNKNOWN_ROLE);
+        if(header.type != m_state)
+        {
+            WARNING_LOG("Records received out of order from web server")
+            complete();
+            return true;
+        }
 
-			transceiver->secureWrite(sizeof(Header)+sizeof(EndRequest), id, killCon);
-			return true;
-		}
 
-		{
-			boost::lock_guard<boost::mutex> lock(messages);
-			m_message=messages.front();
-			messages.pop();
-		}
+        switch(m_state)
+        {
+            case Protocol::RecordType::PARAMS:
+            {
+                if(!(role()==RESPONDER || role()==AUTHORIZER))
+                {
+                    m_status = Protocol::ProtocolStatus::UNKNOWN_ROLE;
+                    WARNING_LOG("We got asked to do an unknown role")
+                    complete();
+                    return true;
+                }
 
-		if(message().type==0)
-		{
-			const Header& header=*(Header*)message().data.get();
-			const char* body=message().data.get()+sizeof(Header);
-			switch(header.getType())
-			{
-				case PARAMS:
-				{
-					if(state!=PARAMS) throw Exceptions::RecordsOutOfOrder();
-					if(header.getContentLength()==0) 
-					{
-						if(m_maxPostSize && environment().contentLength > m_maxPostSize)
-						{
-							bigPostErrorHandler();
-							complete();
-							return true;
-						}
-						state=IN;
-						break;
-					}
-					m_environment.fill(body, header.getContentLength());
-					break;
-				}
+                if(header.contentLength == 0) 
+                {
+                    if(m_maxPostSize 
+                            && environment().contentLength > m_maxPostSize)
+                    {
+                        bigPostErrorHandler();
+                        complete();
+                        return true;
+                    }
+                    m_state = Protocol::RecordType::IN;
+                    return false;
+                }
+                m_environment.fill(body,  bodyEnd);
+                return false;
+            }
 
-				case IN:
-				{
-					if(state!=IN) throw Exceptions::RecordsOutOfOrder();
-					if(header.getContentLength()==0)
-					{
-						// Process POST data based on what our incoming content type is
-						if(m_environment.requestMethod == Http::HTTP_METHOD_POST)
-						{
-							const char multipart[] = "multipart/form-data";
-							const char urlEncoded[] = "application/x-www-form-urlencoded";
+            case Protocol::RecordType::IN:
+            {
+                if(header.getContentLength()==0)
+                {
+                    if(!inProcessor() && !m_environment.parsePostBuffer())
+                    {
+                        WARNING_LOG("Unknown content type from client")
+                        complete();
+                        return true;
+                    }
 
-							if(!inProcessor())
-							{
-								if(sizeof(multipart)-1 == m_environment.contentType.size() && equal(multipart, multipart+sizeof(multipart)-1, m_environment.contentType.begin()))
-									m_environment.parsePostsMultipart();
+                    m_environment.clearPostBuffer();
+                    m_state = Protocol::RecordType::OUT;
+                    if(response())
+                    {
+                        complete();
+                        return true;
+                    }
+                    return false;
+                }
 
-								else if(sizeof(urlEncoded)-1 == m_environment.contentType.size() && equal(urlEncoded, urlEncoded+sizeof(urlEncoded)-1, m_environment.contentType.begin()))
-									m_environment.parsePostsUrlEncoded();
+                m_environment.fillPostBuffer(body, bodyEnd);
+                inHandler(header.getContentLength());
+                return false;
+            }
 
-								else
-									throw Exceptions::UnknownContentType();
-							}
-						}
-
-						m_environment.clearPostBuffer();
-						state=OUT;
-						if(response())
-						{
-							complete();
-							return true;
-						}
-						break;
-					}
-
-					if(!m_environment.fillPostBuffer(body, header.getContentLength()))
-					{
-						bigPostErrorHandler();
-						complete();
-						return true;
-					}
-
-					inHandler(header.getContentLength());
-					break;
-				}
-
-				case ABORT_REQUEST:
-				{
-					return true;
-				}
-			}
-		}
-		else if(response())
-		{
-			complete();
-			return true;
-		}
-	}
-	catch(const std::exception& e)
-	{
-		errorHandler(e);
-		complete();
-		return true;
-	}
-	return false;
+            case ABORT_REQUEST:
+            {
+                complete();
+                return true;
+            }
+        }
+    }
+    else if(response())
+    {
+        
+        m_message = std::move(message);
+        complete();
+        return true;
+    }
 }
 
 template void Fastcgipp::Request<char>::errorHandler(const std::exception& error);
