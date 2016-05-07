@@ -33,7 +33,6 @@
 #include "fastcgi++/webstreambuf.hpp"
 
 #include <istream>
-#include <ostream>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
