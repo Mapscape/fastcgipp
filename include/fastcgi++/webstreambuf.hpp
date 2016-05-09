@@ -35,150 +35,150 @@
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
-	//! Stream manipulator for setting output encoding.
-	/*!
-	 * This simple stream manipulator can set the output encoding of Fcgistream
-	 * objects by
-	 *
-	 * @code
+    //! Stream manipulator for setting output encoding.
+    /*!
+     * This simple stream manipulator can set the output encoding of Fcgistream
+     * objects by
+     *
+     * @code
      * using Fastcgipp::Encoding;
      * out << Encoding::HTML << "<not html&>" << Encoding::NONE << "<htmltag>";
      * @endcode
      *
-	 * When output encoding is set to NONE, no character translation takes place.
-	 * HTML and URL encoding is described by the following table. 
-	 *
-	 * <b>HTML</b>
-	 * <table>
-	 * 	<tr>
-	 * 		<td><b>Input</b></td>
-	 * 		<td><b>Output</b></td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&quot;</td>
-	 * 		<td>&amp;quot;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&gt;</td>
-	 * 		<td>&amp;gt;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&lt;</td>
-	 * 		<td>&amp;lt;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&amp;</td>
-	 * 		<td>&amp;amp;</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&apos;</td>
-	 * 		<td>&amp;apos;</td>
-	 * 	</tr>
-	 * </table>
-	 *
-	 * <b>URL</b>
-	 * <table>
-	 * 	<tr>
-	 * 		<td><b>Input</b></td>
-	 * 		<td><b>Output</b></td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>!</td>
-	 * 		<td>\%21</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>]</td>
-	 * 		<td>\%5D</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>[</td>
-	 * 		<td>\%5B</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>#</td>
-	 * 		<td>\%23</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>?</td>
-	 * 		<td>\%3F</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>/</td>
-	 * 		<td>\%2F</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>,</td>
-	 * 		<td>\%2C</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>$</td>
-	 * 		<td>\%24</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>+</td>
-	 * 		<td>\%2B</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>=</td>
-	 * 		<td>\%3D</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&amp;</td>
-	 * 		<td>\%26</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>\@</td>
-	 * 		<td>\%40</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>:</td>
-	 * 		<td>\%3A</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>;</td>
-	 * 		<td>\%3B</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>)</td>
-	 * 		<td>\%29</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>(</td>
-	 * 		<td>\%28</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>'</td>
-	 * 		<td>\%27</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>*</td>
-	 * 		<td>\%2A</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&lt;</td>
-	 * 		<td>\%3C</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&gt;</td>
-	 * 		<td>\%3E</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>&quot;</td>
-	 * 		<td>\%22</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>*space*</td>
-	 * 		<td>\%20</td>
-	 * 	</tr>
-	 * 	<tr>
-	 * 		<td>\%</td>
-	 * 		<td>\%25</td>
-	 * 	</tr>
-	 * </table>
+     * When output encoding is set to NONE, no character translation takes place.
+     * HTML and URL encoding is described by the following table. 
+     *
+     * <b>HTML</b>
+     * <table>
+     *  <tr>
+     *      <td><b>Input</b></td>
+     *      <td><b>Output</b></td>
+     *  </tr>
+     *  <tr>
+     *      <td>&quot;</td>
+     *      <td>&amp;quot;</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&gt;</td>
+     *      <td>&amp;gt;</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&lt;</td>
+     *      <td>&amp;lt;</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&amp;</td>
+     *      <td>&amp;amp;</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&apos;</td>
+     *      <td>&amp;apos;</td>
+     *  </tr>
+     * </table>
+     *
+     * <b>URL</b>
+     * <table>
+     *  <tr>
+     *      <td><b>Input</b></td>
+     *      <td><b>Output</b></td>
+     *  </tr>
+     *  <tr>
+     *      <td>!</td>
+     *      <td>\%21</td>
+     *  </tr>
+     *  <tr>
+     *      <td>]</td>
+     *      <td>\%5D</td>
+     *  </tr>
+     *  <tr>
+     *      <td>[</td>
+     *      <td>\%5B</td>
+     *  </tr>
+     *  <tr>
+     *      <td>#</td>
+     *      <td>\%23</td>
+     *  </tr>
+     *  <tr>
+     *      <td>?</td>
+     *      <td>\%3F</td>
+     *  </tr>
+     *  <tr>
+     *      <td>/</td>
+     *      <td>\%2F</td>
+     *  </tr>
+     *  <tr>
+     *      <td>,</td>
+     *      <td>\%2C</td>
+     *  </tr>
+     *  <tr>
+     *      <td>$</td>
+     *      <td>\%24</td>
+     *  </tr>
+     *  <tr>
+     *      <td>+</td>
+     *      <td>\%2B</td>
+     *  </tr>
+     *  <tr>
+     *      <td>=</td>
+     *      <td>\%3D</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&amp;</td>
+     *      <td>\%26</td>
+     *  </tr>
+     *  <tr>
+     *      <td>\@</td>
+     *      <td>\%40</td>
+     *  </tr>
+     *  <tr>
+     *      <td>:</td>
+     *      <td>\%3A</td>
+     *  </tr>
+     *  <tr>
+     *      <td>;</td>
+     *      <td>\%3B</td>
+     *  </tr>
+     *  <tr>
+     *      <td>)</td>
+     *      <td>\%29</td>
+     *  </tr>
+     *  <tr>
+     *      <td>(</td>
+     *      <td>\%28</td>
+     *  </tr>
+     *  <tr>
+     *      <td>'</td>
+     *      <td>\%27</td>
+     *  </tr>
+     *  <tr>
+     *      <td>*</td>
+     *      <td>\%2A</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&lt;</td>
+     *      <td>\%3C</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&gt;</td>
+     *      <td>\%3E</td>
+     *  </tr>
+     *  <tr>
+     *      <td>&quot;</td>
+     *      <td>\%22</td>
+     *  </tr>
+     *  <tr>
+     *      <td>*space*</td>
+     *      <td>\%20</td>
+     *  </tr>
+     *  <tr>
+     *      <td>\%</td>
+     *      <td>\%25</td>
+     *  </tr>
+     * </table>
      *
      * @date    May 2, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
-	 */
+     */
     enum class Encoding
     {
         NONE,
@@ -186,7 +186,7 @@ namespace Fastcgipp
         URL
     };
 
-	template<class charT, class traits>
+    template<class charT, class traits>
     std::basic_ostream<charT, traits>& operator<<(
             std::basic_ostream<charT, traits>& os,
             const Encoding& encoding);

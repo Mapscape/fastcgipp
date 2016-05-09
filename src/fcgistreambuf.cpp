@@ -140,12 +140,12 @@ template <class charT, class traits>
 typename Fastcgipp::FcgiStreambuf<charT, traits>::int_type
 Fastcgipp::FcgiStreambuf<charT, traits>::overflow(int_type c)
 {
-	if(!emptyBuffer())
-		return traits_type::eof();
-	if(!traits_type::eq_int_type(c, traits_type::eof()))
-		return this->sputc(c);
-	else
-		return traits_type::not_eof(c);
+    if(!emptyBuffer())
+        return traits_type::eof();
+    if(!traits_type::eq_int_type(c, traits_type::eof()))
+        return this->sputc(c);
+    else
+        return traits_type::not_eof(c);
 }
 
 template

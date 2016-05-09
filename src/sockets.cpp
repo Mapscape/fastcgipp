@@ -206,20 +206,20 @@ bool Fastcgipp::SocketGroup::listen(
     }
     unlink(name);
 
-	// Set the user and group of the socket
+    // Set the user and group of the socket
     if(owner!=nullptr && group!=nullptr)
-	{
-		struct passwd* passwd = getpwnam(owner);
+    {
+        struct passwd* passwd = getpwnam(owner);
         struct group* grp = getgrnam(group);
         if(fchown(fd, passwd->pw_uid, grp->gr_gid)==-1)
         {
-			ERROR_LOG("Unable to chown " << owner << ":" << group \
+            ERROR_LOG("Unable to chown " << owner << ":" << group \
                     << " on the unix socket \"" << name << "\": " \
                     << std::strerror(errno));
             close(fd);
             return false;
-		}
-	}
+        }
+    }
 
     // Set the user and group of the socket
     if(permissions != 0xffffffffUL)

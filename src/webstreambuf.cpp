@@ -85,7 +85,7 @@ namespace Fastcgipp
     template <>
     const std::map<char, const std::basic_string<char>>
     Fastcgipp::WebStreambuf<char, std::char_traits<char>>::urlCharacters
-	{
+    {
         std::make_pair('!', "%21"),
         std::make_pair(']', "%5D"),
         std::make_pair('[', "%5B"),
@@ -109,12 +109,12 @@ namespace Fastcgipp
         std::make_pair('"', "%22"),
         std::make_pair(' ', "%20"),
         std::make_pair('%', "%25")
-	};
+    };
 
     template <>
     const std::map<wchar_t, const std::basic_string<wchar_t>>
     Fastcgipp::WebStreambuf<wchar_t, std::char_traits<wchar_t>>::urlCharacters
-	{
+    {
         std::make_pair('!', L"%21"),
         std::make_pair(']', L"%5D"),
         std::make_pair('[', L"%5B"),
@@ -138,7 +138,7 @@ namespace Fastcgipp
         std::make_pair('"', L"%22"),
         std::make_pair(' ', L"%20"),
         std::make_pair('%', L"%25")
-	};
+    };
 }
 
 template
@@ -154,10 +154,10 @@ std::streamsize Fastcgipp::WebStreambuf<charT, traits>::xsputn(
         const char_type *s,
         std::streamsize n)
 {
-	const char_type* const end = s+n;
+    const char_type* const end = s+n;
 
-	while(true)
-	{
+    while(true)
+    {
         if(m_encoding == Encoding::NONE)
         {
             const std::streamsize actual = std::min(
@@ -165,7 +165,7 @@ std::streamsize Fastcgipp::WebStreambuf<charT, traits>::xsputn(
                     this->epptr()-this->pptr());
             std::copy(s, s+actual, this->pptr());
             this->pbump(actual);
-			s += actual;
+            s += actual;
         }
         else
         {
@@ -200,11 +200,11 @@ std::streamsize Fastcgipp::WebStreambuf<charT, traits>::xsputn(
             }
         }
 
-		if(s<end)
-			this->sync();
+        if(s<end)
+            this->sync();
         else
             break;
-	}
+    }
 
-	return n;
+    return n;
 }
