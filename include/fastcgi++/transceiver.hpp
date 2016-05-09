@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 25, 2016
+ * @date       May 9, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -51,7 +51,7 @@ namespace Fastcgipp
      * level sockets and also the creation/destruction of the sockets
      * themselves.
      *
-     * @date    April 24, 2016
+     * @date    May 9, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Transceiver
@@ -74,6 +74,15 @@ namespace Fastcgipp
          * block until the stop is complete.
          */
         void stop();
+
+        //! Call from any thread to terminate the handler() thread
+        /*!
+         * Calling this thread will signal the handler() thread to immediately
+         * terminate itself and return. This means it doesn't wait until all
+         * connections are closed. Calls to this will block until the
+         * termination is complete.
+         */
+        void terminate();
 
         //! Call from any thread to start the handler() thread
         /*!
@@ -201,6 +210,9 @@ namespace Fastcgipp
         inline void receive(Socket& socket);
 
         //! True when handler() should be terminating
+        std::atomic_bool m_terminate;
+
+        //! True when handler() should be stopping
         std::atomic_bool m_stop;
 
         //! Thread safe starting and stopping
