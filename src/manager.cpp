@@ -126,62 +126,108 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
 
 void Fastcgipp::Manager_base::localHandler(const Socket& socket, Message&& message)
 {
-    /*
 	if(!message.type)
 	{
-		const Header& header=*(Header*)message.data.get(); 
-		switch(header.getType())
+		const Protocol::Header& header=*(Protocol::Header*)message.data.data(); 
+		switch(header.type)
 		{
-			case GET_VALUES:
+            case Protocol::RecordType::GET_VALUES:
 			{
-				size_t nameSize;
-				size_t valueSize;
-				const char* name;
-				const char* value;
-				processParamHeader(message.data.get()+sizeof(Header), header.getContentLength(), name, nameSize, value, valueSize);
-				if(nameSize==14 && !memcmp(name, "FCGI_MAX_CONNS", 14))
-				{
-					Block buffer(transceiver.requestWrite(sizeof(maxConnsReply)));
-					memcpy(buffer.data, (const char*)&maxConnsReply, sizeof(maxConnsReply));
-					transceiver.secureWrite(sizeof(maxConnsReply), id, false);
-				}
-				else if(nameSize==13 && !memcmp(name, "FCGI_MAX_REQS", 13))
-				{
-					Block buffer(transceiver.requestWrite(sizeof(maxReqsReply)));
-					memcpy(buffer.data, (const char*)&maxReqsReply, sizeof(maxReqsReply));
-					transceiver.secureWrite(sizeof(maxReqsReply), id, false);
-				}
-				else if(nameSize==15 && !memcmp(name, "FCGI_MPXS_CONNS", 15))
-				{
-					Block buffer(transceiver.requestWrite(sizeof(mpxsConnsReply)));
-					memcpy(buffer.data, (const char*)&mpxsConnsReply, sizeof(mpxsConnsReply));
-					transceiver.secureWrite(sizeof(mpxsConnsReply), id, false);
-				}
+                std::vector<char>::const_iterator name;
+                std::vector<char>::const_iterator value;
+                std::vector<char>::const_iterator end;
 
+                while(Protocol::processParamHeader(
+                        message.data.cbegin()+sizeof(header),
+                        message.data.cend(),
+                        name,
+                        value,
+                        end))
+                {
+                    switch(value-name)
+                    {
+                        case 14:
+                        {    
+                            if(std::equal(name, value, "FCGI_MAX_CONNS"))
+                            {
+                                std::vector<char> record(
+                                        sizeof(Protocol::maxConnsReply));
+                                const char* const start 
+                                    = (const char*)&Protocol::maxConnsReply;
+                                const char* end = start
+                                    +sizeof(Protocol::maxConnsReply);
+                                std::copy(start, end, record.begin());
+                                m_transceiver.send(
+                                        socket,
+                                        std::move(record),
+                                        false);
+                            }
+                            break;
+                        }
+                        case 13:
+                        {
+                            if(std::equal(name, value, "FCGI_MAX_REQS"))
+                            {
+                                std::vector<char> record(
+                                        sizeof(Protocol::maxReqsReply));
+                                const char* const start 
+                                    = (const char*)&Protocol::maxReqsReply;
+                                const char* end = start
+                                    + sizeof(Protocol::maxReqsReply);
+                                std::copy(start, end, record.begin());
+                                m_transceiver.send(
+                                        socket,
+                                        std::move(record),
+                                        false);
+                            }
+                            break;
+                        }
+                        case 15:
+                        {
+                            if(std::equal(name, value, "FCGI_MPXS_CONNS"))
+                            {
+                                std::vector<char> record(
+                                        sizeof(Protocol::mpxsConnsReply));
+                                const char* const start 
+                                    = (const char*)&Protocol::mpxsConnsReply;
+                                const char* end = start
+                                    + sizeof(Protocol::mpxsConnsReply);
+                                std::copy(start, end, record.begin());
+                                m_transceiver.send(
+                                        socket,
+                                        std::move(record),
+                                        false);
+                            }
+                            break;
+                        }
+                    }
+                }
 				break;
 			}
 
 			default:
 			{
-				Block buffer(transceiver.requestWrite(sizeof(Header)+sizeof(UnknownType)));
+                std::vector<char> record(
+                        sizeof(Protocol::Header)
+                        +sizeof(Protocol::UnknownType));
 
-				Header& sendHeader=*(Header*)buffer.data;
-				sendHeader.setVersion(Protocol::version);
-				sendHeader.setType(UNKNOWN_TYPE);
-				sendHeader.setRequestId(0);
-				sendHeader.setContentLength(sizeof(UnknownType));
-				sendHeader.setPaddingLength(0);
+                Protocol::Header& sendHeader=*(Protocol::Header*)record.data();
+				sendHeader.version = Protocol::version;
+				sendHeader.type = Protocol::RecordType::UNKNOWN_TYPE;
+				sendHeader.fcgiId = 0;
+				sendHeader.contentLength = sizeof(Protocol::UnknownType);
+				sendHeader.paddingLength = 0;
 
-				UnknownType& sendBody=*(UnknownType*)(buffer.data+sizeof(Header));
-				sendBody.setType(header.getType());
+                Protocol::UnknownType& sendBody
+                    = *(Protocol::UnknownType*)(record.data()+sizeof(header));
+				sendBody.type = header.type;
 
-				transceiver.secureWrite(sizeof(Header)+sizeof(UnknownType), id, false);
+                m_transceiver.send(socket, std::move(record), false);
 
 				break;
 			}
 		}
 	}
-    */
 }
 
 void Fastcgipp::Manager_base::handler()
@@ -223,12 +269,28 @@ void Fastcgipp::Manager_base::handler()
                 if(task->id.m_id == 0)
                 {
                     // HANDLE LOCAL STUFF
-
+                    localHandler(task->id.m_socket, std::move(task->message));
                     destroyTask = true;
                 }
                 else if(task->id.m_id == Protocol::badFcgiId)
                 {
-                    // DEAD SOCKET
+                    requestsWriteLock.lock();
+                    auto range = m_requests.equal_range(task->id.m_socket);
+                    auto request = range.first;
+                    while(request != range.second)
+                    {
+                        std::unique_lock<std::mutex> lock(
+                                request->second.first,
+                                std::try_to_lock);
+                        if(lock)
+                        {
+                            lock.unlock();
+                            request = m_requests.erase(request);
+                        }
+                        else
+                            ++request;
+                    }
+                    requestsWriteLock.unlock();
 
                     destroyTask = true;
                 }
@@ -238,18 +300,15 @@ void Fastcgipp::Manager_base::handler()
                     requestsWriteLock.lock();
                     auto request = m_requests.find(task->id);
                     if(request == m_requests.end())
-                        /*m_requests.emplace(std::make_pair(
-                                    task->id,
-                                    std::make_pair(
-                                        std::mutex(),
-                                        std::unique_ptr<Request_base>()))).first;*/
-                        m_requests.emplace(
+                        request = m_requests.emplace(
                                 std::piecewise_construct,
                                 std::forward_as_tuple(task->id),
-                                std::forward_as_tuple());
+                                std::forward_as_tuple()).first;
+
                     std::unique_lock<std::mutex> requestLock(
                             request->second.first,
                             std::try_to_lock);
+
                     if(requestLock)
                     {
                         // We got ownership of the request
@@ -260,7 +319,8 @@ void Fastcgipp::Manager_base::handler()
                         {
                             // The request already exists, pass the message along
                             if(request->second.second->handler(
-                                        std::move(task->message)))
+                                        std::move(task->message)) ||
+                                    !request->first.m_socket.valid())
                                 destroyRequest = true;
                         }
                         else
