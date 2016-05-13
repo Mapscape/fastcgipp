@@ -39,6 +39,25 @@
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
+    //! De-templating base class for Request
+    class Request_base
+    {
+    public:
+        //! Request Handler
+        /*!
+         * This function is called by Manager::handler() to handle messages
+         * destined for the request.  It deals with FastCGI messages (type=0)
+         * while passing all other messages off to response().
+         *
+         * @param [in] message Message for the request.
+         * @return Boolean value indicating completion (true means complete)
+         * @sa callback
+         */
+        virtual bool handler(Message&& message) =0;
+
+        virtual ~Request_base() {}
+    };
+
     //! %Request handling class
     /*!
      * Derivations of this class will handle requests. This includes building
@@ -57,7 +76,7 @@ namespace Fastcgipp
      * @date    May 9, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
-    template<class charT> class Request
+    template<class charT> class Request: public Request_base
     {
     public:
         //! Initializes what it can. configure() to finish.
@@ -97,6 +116,20 @@ namespace Fastcgipp
                 const std::function<void(const Socket&, std::vector<char>&&, bool)>
                     send,
                 const std::function<void(Message)> callback);
+
+        //! Request Handler
+        /*!
+         * This function is called by Manager::handler() to handle messages
+         * destined for the request.  It deals with FastCGI messages (type=0)
+         * while passing all other messages off to response().
+         *
+         * @param [in] message Message for the request.
+         * @return Boolean value indicating completion (true means complete)
+         * @sa callback
+         */
+        bool handler(Message&& message);
+
+        virtual ~Request() {}
 
     protected:
         //! Accessor for the HTTP environment data
@@ -234,18 +267,6 @@ namespace Fastcgipp
 
         //! The maximum amount of post data that can be recieved
         const size_t m_maxPostSize;
-
-        //! Request Handler
-        /*!
-         * This function is called by Manager::handler() to handle messages
-         * destined for the request.  It deals with FastCGI messages (type=0)
-         * while passing all other messages off to response().
-         *
-         * @param [in] message Message for the request.
-         * @return Boolean value indicating completion (true means complete)
-         * @sa callback
-         */
-        bool handler(Message&& message);
 
         //! The role that the other side expects this request to play
         Protocol::Role m_role;

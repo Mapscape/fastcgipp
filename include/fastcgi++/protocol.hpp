@@ -2,7 +2,7 @@
  * @file       protocol.hpp
  * @brief      Declares everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 6, 2016
+ * @date       May 11, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -288,7 +288,7 @@ namespace Fastcgipp
          * as is. A BEGIN_REQUEST record is received when the other side wished
          * to make a new request.
          *
-         * @date    March 6, 2016
+         * @date    May 11, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         struct BeginRequest
@@ -306,9 +306,9 @@ namespace Fastcgipp
              * @return Boolean value as to whether or not the connection is kept
              *         alive.
              */
-            bool getKeepConn() const
+            bool kill() const
             {
-                return flags & keepConnBit;
+                return !(flags & keepConnBit);
             }
 
             //! Role
