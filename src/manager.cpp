@@ -72,7 +72,7 @@ void Fastcgipp::Manager_base::start()
         if(!thread.joinable())
         {
             std::thread newThread(&Fastcgipp::Manager_base::handler, this);
-            thread.swap(thread);
+            thread.swap(newThread);
         }
 }
 
@@ -247,7 +247,8 @@ void Fastcgipp::Manager_base::handler()
 
         busyRequests.clear();
         tasksReadLock.lock();
-        for(auto task = m_tasks.begin(); task != m_tasks.end(); ++task)
+        auto task = m_tasks.begin();
+        while(task != m_tasks.end())
         {
             std::unique_lock<std::mutex> taskLock(
                     task->mutex,
@@ -366,15 +367,19 @@ void Fastcgipp::Manager_base::handler()
                 {
                     tasksWriteLock.lock();
                     taskLock.unlock();
-                    m_tasks.erase(task);
+                    task = m_tasks.erase(task);
                     tasksWriteLock.unlock();
+                    tasksReadLock.lock();
                 }
                 else
+                {
+                    tasksReadLock.lock();
                     taskLock.unlock();
+                    ++task;
+                }
             }
             else
-                tasksReadLock.unlock();
-            tasksReadLock.lock();
+                ++task;
         }
 
         if(m_tasks.empty())
