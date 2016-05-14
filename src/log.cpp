@@ -35,7 +35,7 @@
 #include <cmath>
 
 std::wostream* Fastcgipp::Logging::logstream(&std::wcerr);
-bool Fastcgipp::Logging::logTimestamp(false);
+bool Fastcgipp::Logging::logTimestamp(true);
 std::mutex Fastcgipp::Logging::mutex;
 bool Fastcgipp::Logging::suppress(false);
 
