@@ -103,6 +103,16 @@ add_custom_target(
     transceiver_test
     fcgistreambuf_test)
 
+# Examples
+
+add_executable(helloworld.fcgi EXCLUDE_FROM_ALL examples/helloworld.cpp)
+add_dependencies(helloworld.fcgi fastcgipp)
+target_link_libraries(helloworld.fcgi PRIVATE fastcgipp)
+
+add_custom_target(
+    examples DEPENDS
+    helloworld.fcgi)
+
 # And finally the documentation
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
