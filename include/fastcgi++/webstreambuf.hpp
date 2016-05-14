@@ -222,6 +222,10 @@ namespace Fastcgipp
         friend std::basic_ostream<charT, traits>& operator<< <charT, traits>(
                 std::basic_ostream<charT, traits>& os,
                 const Encoding& encoding);
+    public:
+        WebStreambuf():
+            m_encoding(Encoding::NONE)
+        {}
     };
 }
 
