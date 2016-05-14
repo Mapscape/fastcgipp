@@ -294,72 +294,72 @@ void Fastcgipp::Manager_base::handler()
                     requestsWriteLock.lock();
                     auto request = m_requests.find(task->id);
                     if(request == m_requests.end())
-                        request = m_requests.emplace(
-                                std::piecewise_construct,
-                                std::forward_as_tuple(task->id),
-                                std::forward_as_tuple()).first;
-
-                    std::unique_lock<std::mutex> requestLock(
-                            request->second.mutex,
-                            std::try_to_lock);
-
-                    if(requestLock)
                     {
-                        // We got ownership of the request
-                        requestsWriteLock.unlock();
-                        bool destroyRequest = false;
-
-                        if(request->second.request)
+                        const Protocol::Header& header=
+                            *(Protocol::Header*)task->message.data.data();
+                        if(header.type == Protocol::RecordType::BEGIN_REQUEST)
                         {
+                            const Protocol::BeginRequest& body
+                                =*(Protocol::BeginRequest*)(
+                                        task->message.data.data()
+                                        +sizeof(header));
+
+                            request = m_requests.emplace(
+                                    std::piecewise_construct,
+                                    std::forward_as_tuple(task->id),
+                                    std::forward_as_tuple()).first;
+
+                            std::lock_guard<std::mutex> requestLock(
+                                    request->second.mutex);
+                            requestsWriteLock.unlock();
+
+                            request->second.request = makeRequest(
+                                    task->id,
+                                    body.role,
+                                    body.kill());
+
+                            destroyTask = true;
+                        }
+                        else
+                        {
+                            DEBUG_LOG("Shouldn't be here")
+                            requestsWriteLock.unlock();
+                            busyRequests.insert(task->id);
+                        }
+                    }
+                    else
+                    {
+                        std::unique_lock<std::mutex> requestLock(
+                                request->second.mutex,
+                                std::try_to_lock);
+
+                        if(requestLock)
+                        {
+                            // We got ownership of the request
+                            requestsWriteLock.unlock();
+
                             // The request already exists, pass the message along
                             if(!request->first.m_socket.valid() ||
                                     request->second.request->handler(
                                         std::move(task->message)))
-                                destroyRequest = true;
-                        }
-                        else
-                        {
-                            // I guess we need to build a new request
-                            const Protocol::Header& header=
-                                *(Protocol::Header*)task->message.data.data();
-                            if(header.type == Protocol::RecordType::BEGIN_REQUEST)
                             {
-                                const Protocol::BeginRequest& body
-                                    =*(Protocol::BeginRequest*)(
-                                            task->message.data.data()
-                                            +sizeof(header));
-
-                                request->second.request = makeRequest(
-                                        task->id,
-                                        body.role,
-                                        body.kill());
+                                requestsWriteLock.lock();
+                                requestLock.unlock();
+                                m_requests.erase(request);
+                                requestsWriteLock.unlock();
                             }
                             else
-                            {
-                                destroyRequest = true;
-                                ERROR_LOG("We got a non-BEGIN_REQUEST record "\
-                                        "for a request that doesn't exist");
-                            }
-                        }
+                                requestLock.unlock();
 
-                        if(destroyRequest)
-                        {
-                            requestsWriteLock.lock();
-                            requestLock.unlock();
-                            m_requests.erase(request);
-                            requestsWriteLock.unlock();
+                            destroyTask = true;
                         }
                         else
-                            requestLock.unlock();
-
-                        destroyTask = true;
-                    }
-                    else
-                    {
-                        requestsWriteLock.unlock();
-                        // If we can do this task for this request, then we
-                        // shouldn't do any others farther down in the queue.
-                        busyRequests.insert(task->id);
+                        {
+                            requestsWriteLock.unlock();
+                            // If we can do this task for this request, then we
+                            // shouldn't do any others farther down in the queue.
+                            busyRequests.insert(task->id);
+                        }
                     }
                 }
 
@@ -367,6 +367,7 @@ void Fastcgipp::Manager_base::handler()
                 {
                     tasksWriteLock.lock();
                     taskLock.unlock();
+                    DEBUG_LOG("Erasing task")
                     task = m_tasks.erase(task);
                     tasksWriteLock.unlock();
                     tasksReadLock.lock();
