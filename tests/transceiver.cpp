@@ -376,6 +376,7 @@ int main()
     client();
 
     transceiver.stop();
+    transceiver.join();
 
     echoTerminate = true;
     echoCv.notify_all();

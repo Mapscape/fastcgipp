@@ -2,7 +2,7 @@
  * @file       manager.hpp
  * @brief      Declares the Manager class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 13, 2016
+ * @date       May 14, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -57,7 +57,7 @@ namespace Fastcgipp
      *  - Call start()
      *  - Call stop() or terminate() when you are done.
      *
-     * @date    May 13, 2016
+     * @date    May 14, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
 	 */
 	class Manager_base
@@ -79,8 +79,10 @@ namespace Fastcgipp
 		/*!
          * This function is intended to be called from a thread separate from
          * the Manager in order to terminate it. It should also be called by a
-         * signal handler in the case of of a SIGTERM.
+         * signal handler in the case of of a SIGTERM. It will force the manager
+         * to terminate immediately.
 		 *
+         * @sa join()
 		 * @sa setupSignals()
 		 * @sa signalHandler()
 		 */
@@ -92,6 +94,7 @@ namespace Fastcgipp
          * case of of a SIGUSR1. It is similar to terminate() except the
          * Manager will wait until all requests are complete before halting.
 		 *
+         * @sa join()
 		 * @sa setupSignals()
 		 * @sa signalHandler()
 		 */
@@ -102,6 +105,9 @@ namespace Fastcgipp
          * If the Manager is already running this will do nothing.
          */
         void start();
+
+        //! Block until a stop() or terminate() is called and completed
+        void join();
 		
 		//! Configure the handlers for POSIX signals
 		/*!
@@ -201,8 +207,15 @@ namespace Fastcgipp
         //! Thread safe our tasks
         std::shared_timed_mutex m_tasksMutex;
 
+        //! Data structure to contain a request with a mutex
+        struct LockableRequest
+        {
+            std::mutex mutex;
+            std::unique_ptr<Request_base> request;
+        };
+
         //! An associative container for our requests
-        Protocol::Requests<std::pair<std::mutex, std::unique_ptr<Request_base>>>
+        Protocol::Requests<LockableRequest>
             m_requests;
 
         //! Thread safe our requests

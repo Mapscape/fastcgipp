@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 9, 2016
+ * @date       May 14, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -78,36 +78,33 @@ void Fastcgipp::Transceiver::handler()
 
 void Fastcgipp::Transceiver::stop()
 {
-    std::lock_guard<std::mutex> lock(m_startStopMutex);
-    if(m_thread.joinable())
-    {
-        m_stop=true;
-        m_sockets.accept(false);
-        m_thread.join();
-    }
+    m_stop=true;
+    m_sockets.accept(false);
 }
 
 void Fastcgipp::Transceiver::terminate()
 {
-    std::lock_guard<std::mutex> lock(m_startStopMutex);
-    if(m_thread.joinable())
-    {
-        m_terminate=true;
-        m_sockets.wake();
-        m_thread.join();
-    }
+    m_terminate=true;
+    m_sockets.wake();
 }
 
 void Fastcgipp::Transceiver::start()
 {
-    std::lock_guard<std::mutex> lock(m_startStopMutex);
+    m_stop=false;
+    m_terminate=false;
+    m_sockets.accept(true);
     if(!m_thread.joinable())
     {
-        m_stop=false;
-        m_terminate=false;
         std::thread thread(&Fastcgipp::Transceiver::handler, this);
-        m_sockets.accept(true);
         m_thread.swap(thread);
+    }
+}
+
+void Fastcgipp::Transceiver::join()
+{
+    if(m_thread.joinable())
+    {
+        m_thread.join();
     }
 }
 

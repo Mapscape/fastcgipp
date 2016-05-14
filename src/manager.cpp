@@ -2,7 +2,7 @@
  * @file       manager.cpp
  * @brief      Defines the Manager class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 13, 2016
+ * @date       May 14, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -48,50 +48,40 @@ Fastcgipp::Manager_base::Manager_base(unsigned threads):
 
 void Fastcgipp::Manager_base::terminate()
 {
-    std::unique_lock<std::mutex> lock(m_startStopMutex);
-    if(!m_terminate && !m_stop)
-    {
-        m_terminate=true;
-        m_wake.notify_all();
-        lock.unlock();
-
-        m_transceiver.accept(false);
-        for(auto& thread: m_threads)
-            thread.join();
-        m_transceiver.terminate();
-    }
+    std::lock_guard<std::mutex> lock(m_startStopMutex);
+    m_terminate=true;
+    m_transceiver.terminate();
+    m_wake.notify_all();
 }
 
 void Fastcgipp::Manager_base::stop()
 {
-    std::unique_lock<std::mutex> lock(m_startStopMutex);
-    if(!m_terminate && !m_stop)
-    {
-        m_stop=true;
-        m_wake.notify_all();
-        lock.unlock();
-
-        m_transceiver.accept(false);
-        for(auto& thread: m_threads)
-            thread.join();
-        m_transceiver.stop();
-    }
+    std::lock_guard<std::mutex> lock(m_startStopMutex);
+    m_stop=true;
+    m_transceiver.stop();
+    m_wake.notify_all();
 }
 
 void Fastcgipp::Manager_base::start()
 {
     std::lock_guard<std::mutex> lock(m_startStopMutex);
-    if(m_terminate || m_stop)
-    {
-        m_stop=false;
-        m_terminate=false;
-        m_transceiver.start();
-        for(auto& thread: m_threads)
+    m_stop=false;
+    m_terminate=false;
+    m_transceiver.start();
+    for(auto& thread: m_threads)
+        if(!thread.joinable())
         {
             std::thread newThread(&Fastcgipp::Manager_base::handler, this);
             thread.swap(thread);
         }
-    }
+}
+
+void Fastcgipp::Manager_base::join()
+{
+    for(auto& thread: m_threads)
+        if(thread.joinable())
+            thread.join();
+    m_transceiver.join();
 }
 
 #include <signal.h>
@@ -268,19 +258,20 @@ void Fastcgipp::Manager_base::handler()
 
                 if(task->id.m_id == 0)
                 {
-                    // HANDLE LOCAL STUFF
                     localHandler(task->id.m_socket, std::move(task->message));
                     destroyTask = true;
                 }
                 else if(task->id.m_id == Protocol::badFcgiId)
                 {
+                    // Transceiver is telling us a socket has died. We should
+                    // destroy all it's associated requests.
                     requestsWriteLock.lock();
                     auto range = m_requests.equal_range(task->id.m_socket);
                     auto request = range.first;
                     while(request != range.second)
                     {
                         std::unique_lock<std::mutex> lock(
-                                request->second.first,
+                                request->second.mutex,
                                 std::try_to_lock);
                         if(lock)
                         {
@@ -306,7 +297,7 @@ void Fastcgipp::Manager_base::handler()
                                 std::forward_as_tuple()).first;
 
                     std::unique_lock<std::mutex> requestLock(
-                            request->second.first,
+                            request->second.mutex,
                             std::try_to_lock);
 
                     if(requestLock)
@@ -315,10 +306,10 @@ void Fastcgipp::Manager_base::handler()
                         requestsWriteLock.unlock();
                         bool destroyRequest = false;
 
-                        if(request->second.second)
+                        if(request->second.request)
                         {
                             // The request already exists, pass the message along
-                            if(request->second.second->handler(
+                            if(request->second.request->handler(
                                         std::move(task->message)) ||
                                     !request->first.m_socket.valid())
                                 destroyRequest = true;
@@ -335,7 +326,7 @@ void Fastcgipp::Manager_base::handler()
                                             task->message.data.data()
                                             +sizeof(header));
 
-                                request->second.second = makeRequest(
+                                request->second.request = makeRequest(
                                         task->id,
                                         body.role,
                                         body.kill());

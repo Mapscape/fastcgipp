@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 13, 2016
+ * @date       May 14, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -69,18 +69,20 @@ namespace Fastcgipp
         //! Call from any thread to stop the handler() thread
         /*!
          * Calling this thread will signal the handler() thread to cleanly stop
-         * itself and return. This means it keeps going until all connections
-         * are closed. No new connections are accepted. Calls to this will
-         * block until the stop is complete.
+         * itself. This means it keeps going until all connections are closed.
+         * No new connections are accepted.
+         *
+         * @sa join()
          */
         void stop();
 
         //! Call from any thread to terminate the handler() thread
         /*!
          * Calling this thread will signal the handler() thread to immediately
-         * terminate itself and return. This means it doesn't wait until all
-         * connections are closed. Calls to this will block until the
-         * termination is complete.
+         * terminate itself. This means it doesn't wait until all connections
+         * are closed.
+         *
+         * @sa join()
          */
         void terminate();
 
@@ -89,6 +91,9 @@ namespace Fastcgipp
          * If the thread is already running this will do nothing.
          */
         void start();
+
+        //! Block until a stop() or terminate() is called and completed
+        void join();
 
         //! Queue up a block of data for transmission
         /*!
@@ -170,12 +175,6 @@ namespace Fastcgipp
             return m_sockets.listen(interface, service);
         }
 
-        //! Enable/disable the acceptance of new connections
-        void accept(bool x)
-        {
-            m_sockets.accept(x);
-        }
-
     private:
         //! Container associating sockets with their receive buffers
         std::map<Socket, std::vector<char>> m_receiveBuffers;
@@ -225,9 +224,6 @@ namespace Fastcgipp
 
         //! True when handler() should be stopping
         std::atomic_bool m_stop;
-
-        //! Thread safe starting and stopping
-        std::mutex m_startStopMutex;
 
         //! Thread our handler is running in
         std::thread m_thread;
