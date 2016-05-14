@@ -114,7 +114,9 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
 	}
 }
 
-void Fastcgipp::Manager_base::localHandler(const Socket& socket, Message&& message)
+void Fastcgipp::Manager_base::localHandler(
+        const Socket& socket,
+        Message& message)
 {
 	if(!message.type)
 	{
@@ -258,7 +260,7 @@ void Fastcgipp::Manager_base::handler()
 
                 if(task->id.m_id == 0)
                 {
-                    localHandler(task->id.m_socket, std::move(task->message));
+                    localHandler(task->id.m_socket, task->message);
                     destroyTask = true;
                 }
                 else if(task->id.m_id == Protocol::badFcgiId)
@@ -287,7 +289,7 @@ void Fastcgipp::Manager_base::handler()
                 }
                 else if(busyRequests.count(task->id) == 0)
                 {
-                    // The task is for a request
+                    // The task is for a non-busy request
                     requestsWriteLock.lock();
                     auto request = m_requests.find(task->id);
                     if(request == m_requests.end())
@@ -309,9 +311,9 @@ void Fastcgipp::Manager_base::handler()
                         if(request->second.request)
                         {
                             // The request already exists, pass the message along
-                            if(request->second.request->handler(
-                                        std::move(task->message)) ||
-                                    !request->first.m_socket.valid())
+                            if(!request->first.m_socket.valid() ||
+                                    request->second.request->handler(
+                                        std::move(task->message)))
                                 destroyRequest = true;
                         }
                         else

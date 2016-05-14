@@ -232,7 +232,7 @@ namespace Fastcgipp
 		 * @param[in] socket Socket to reply on.
          * @param[in] message Message we are replying to.
 		 */
-		inline void localHandler(const Socket& socket, Message&& message);
+		inline void localHandler(const Socket& socket, Message& message);
 
         //! True when the manager should be terminating
         bool m_terminate;
