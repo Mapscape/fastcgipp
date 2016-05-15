@@ -1,0 +1,83 @@
+/*!
+
+\page helloWorld Hello World
+
+Our goal here will be to walk through the helloworld.fcgi application that
+responds to clients with a "Hello World" in five different languages. This
+example can be built with a simple
+```
+make helloworld.fcgi
+```
+
+\section walkthrough Walkthrough
+
+The first step is to make our request handling class. It must at minimum:
+ 1. Be derived from Fastcgipp::Request
+ 2. Define the virtual response() member function from Fastcgipp::Request
+
+First things first let's decide on what kind of character set we will use.
+Obviously with all these different languages we can't use something like
+ISO-8859-1. Our only option is unicode and in particular utf-8. The way this
+library handles unicode might be different than some are used to. All internal
+characters are wide.  This way we don't have to mess around with variable size
+characters in our program.  A string with 10 wchar_ts is ten characters long.
+Not up in the air as it is with utf-8. Anyway, moving right along, the streams
+will code convert all the wide characters to utf-8 before it is sent out to the
+client.  This way we get the best of both worlds.
+
+So, whenever we are going to use utf-8, our template parameter for
+Fastcgipp::Request<charT> should be wchar_t. Keep in mind that this suddenly
+makes everything wide character and unicode compatible. Including HTTP header
+data (cookies, urls, yada-yada).
+
+Now we need to write the code that actually handles the request. Quite simply,
+all we need to do is derive from Fastcgipp::Request and define the
+Fastcgipp::Request::response() function. Since we've decided to use wide Unicode
+characters, we need to pass wchar_t as the template parameter to the Request
+class as opposed to char.
+\snippet examples/helloworld.cpp Request definition
+
+Now we can define our response function. It is this function that is called to
+generate a response for the client.
+\snippet examples/helloworld.cpp Response definition
+
+Any data we want to send to the client just get's inserted into the requests
+"out" stream. It works just the same as std::cout in almost every way. We'll
+start by outputting an HTTP header to the client. Note the "charset=utf-8" and
+keep in mind that proper HTTP headers are to be terminated with "\r\n\r\n"; not
+just "\n\n".
+\snippet examples/helloworld.cpp HTTP header
+
+Now we're ready to insert all the HTML data into the stream.
+\snippet examples/helloworld.cpp Output
+
+And we're basically done defining our response! All we need to do is return a
+boolean value. Always return true if you are done. This will let apache and the
+manager know we are done so they can destroy the request and free it's
+resources. Return false if you are not finished but want to relinquish control
+and allow other requests to operate. You would do this if the request needed to
+wait for a message to be passed back to it through the task manager.
+\snippet examples/helloworld.cpp Return
+
+Now we need to make our main() function. First we need to create a
+Fastcgipp::Manager object with the new class we made as a template parameter.
+\snippet examples/helloworld.cpp Manager
+
+We need to do the following to ensure the manager is tied to signals that the
+web server may send.
+\snippet examples/helloworld.cpp Signals
+
+The default Manager::listen() call makes the manager listen for incoming
+connections on the default FastCGI socket.
+\snippet examples/helloworld.cpp Listen
+
+This tells the manager to start it's worker threads.
+\snippet examples/helloworld.cpp Start
+
+Now we just pause execution until the manager threads have completed.
+\snippet examples/helloworld.cpp Join
+
+\section code Full Source Code
+\include helloworld.cpp
+
+*/

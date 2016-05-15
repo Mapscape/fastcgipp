@@ -37,17 +37,14 @@ if(UNIX)
         "$ENV{CXXFLAGS} -Og -fno-omit-frame-pointer -g -ggdb -std=c++14 -Wall -Werror -pthread")
 endif()
 
+include_directories(
+    "${CMAKE_CURRENT_BINARY_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
 # Our configuration 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/include/config.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/include/fastcgi++/config.h" @ONLY)
-
-# Include directories
-include_directories(include)
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/include")
-install(DIRECTORY
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++"
-    DESTINATION "include")
 
 # The shared library itself
 add_library(fastcgipp SHARED
@@ -62,9 +59,19 @@ add_library(fastcgipp SHARED
     src/manager.cpp)
 install(TARGETS fastcgipp LIBRARY DESTINATION lib)
 
-# Install the config file
+# Install the header file
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/include/fastcgi++/config.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/fcgistreambuf.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/http.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/log.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/manager.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/message.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/protocol.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/request.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/sockets.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/transceiver.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/fastcgi++/webstreambuf.hpp"
     DESTINATION "include/fastcgi++")
 
 # All the test stuff
@@ -120,8 +127,8 @@ if(DOXYGEN_FOUND)
         "${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile.in"
         "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile" @ONLY)
     configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/doc/doc.hpp.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/doc.hpp" @ONLY)
+        "${CMAKE_CURRENT_SOURCE_DIR}/doc/mainpage.dox.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/mainpage.dox" @ONLY)
     add_custom_target(
         doc
         "${DOXYGEN_EXECUTABLE}" "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
