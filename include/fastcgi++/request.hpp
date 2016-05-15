@@ -2,7 +2,7 @@
  * @file       request.hpp
  * @brief      Declares the Request class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 9, 2016
+ * @date       May 15, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -35,6 +35,8 @@
 
 #include <ostream>
 #include <functional>
+#include <queue>
+#include <mutex>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -56,6 +58,23 @@ namespace Fastcgipp
         virtual bool handler(Message&& message) =0;
 
         virtual ~Request_base() {}
+
+        //! Only one thread is allowed to handle the request at a time
+        std::mutex mutex;
+
+        //! Send a message to the request
+        inline void push(Message&& message)
+        {
+            std::lock_guard<std::mutex> lock(m_messagesMutex);
+            m_messages.push(std::move(message));
+        }
+
+    protected:
+        //! A queue of message for the request
+        std::queue<Message> m_messages;
+
+        //! Thread safe our message queue
+        std::mutex m_messagesMutex;
     };
 
     //! %Request handling class
@@ -73,7 +92,7 @@ namespace Fastcgipp
      *
      * @tparam charT Character type for internal processing (wchar_t or char)
      *
-     * @date    May 9, 2016
+     * @date    May 15, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     template<class charT> class Request: public Request_base
@@ -127,7 +146,7 @@ namespace Fastcgipp
          * @return Boolean value indicating completion (true means complete)
          * @sa callback
          */
-        bool handler(Message&& message);
+        bool handler();
 
         virtual ~Request() {}
 

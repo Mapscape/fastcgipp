@@ -2,7 +2,7 @@
  * @file       request.cpp
  * @brief      Defines the Request class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 9, 2016
+ * @date       May 15, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -54,10 +54,19 @@ template<class charT> void Fastcgipp::Request<charT>::complete()
     m_send(m_id.m_socket, std::move(record), m_kill);
 }
 
-template bool Fastcgipp::Request<char>::handler(Message&& message);
-template bool Fastcgipp::Request<wchar_t>::handler(Message&& message);
-template<class charT> bool Fastcgipp::Request<charT>::handler(Message&& message)
+template bool Fastcgipp::Request<char>::handler();
+template bool Fastcgipp::Request<wchar_t>::handler();
+template<class charT> bool Fastcgipp::Request<charT>::handler()
 {
+    Message message;
+    {
+        std::lock_guard<std::mutex> lock(m_messagesMutex);
+        if(m_messages.empty())
+            return false;
+        message = std::move(m_messages.front());
+        m_messages.pop();
+    }
+
     if(message.type == 0)
     {
         const Protocol::Header& header=*(Protocol::Header*)message.data.data();
