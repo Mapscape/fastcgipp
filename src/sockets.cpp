@@ -157,6 +157,8 @@ bool Fastcgipp::SocketGroup::listen()
 {
     const int listen=0;
 
+    fcntl(listen, F_SETFL, (fcntl(listen, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
+
     if(m_listeners.find(listen) == m_listeners.end())
     {
         m_listeners.insert(listen);
@@ -434,7 +436,11 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
 #endif
 
         if(pollResult<0)
+        {
+            if(errno == EINTR)
+                continue;
             FAIL_LOG("Error on poll: " << std::strerror(errno))
+        }
         else if(pollResult>0)
         {
 #ifdef FASTCGIPP_LINUX
