@@ -51,11 +51,13 @@ namespace Fastcgipp
          * destined for the request.  It deals with FastCGI messages (type=0)
          * while passing all other messages off to response().
          *
-         * @param [in] message Message for the request.
-         * @return Boolean value indicating completion (true means complete)
+         * @return A lock locking the requests message queue. If the request
+         *         completes this will be unlocked. If the request isn't
+         *         complete it will be locked. If locked, makes sure to unlock
+         *         it \e after unlocking Request::mutex.
          * @sa callback
          */
-        virtual bool handler(Message&& message) =0;
+        virtual std::unique_lock<std::mutex> handler() =0;
 
         virtual ~Request_base() {}
 
@@ -136,17 +138,7 @@ namespace Fastcgipp
                     send,
                 const std::function<void(Message)> callback);
 
-        //! Request Handler
-        /*!
-         * This function is called by Manager::handler() to handle messages
-         * destined for the request.  It deals with FastCGI messages (type=0)
-         * while passing all other messages off to response().
-         *
-         * @param [in] message Message for the request.
-         * @return Boolean value indicating completion (true means complete)
-         * @sa callback
-         */
-        bool handler();
+        std::unique_lock<std::mutex> handler();
 
         virtual ~Request() {}
 

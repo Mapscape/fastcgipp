@@ -48,7 +48,7 @@ Fastcgipp::Manager_base::Manager_base(unsigned threads):
 
 void Fastcgipp::Manager_base::terminate()
 {
-    std::lock_guard<std::mutex> lock(m_startStopMutex);
+    std::lock_guard<std::mutex> lock(m_tasksMutex);
     m_terminate=true;
     m_transceiver.terminate();
     m_wake.notify_all();
@@ -56,7 +56,7 @@ void Fastcgipp::Manager_base::terminate()
 
 void Fastcgipp::Manager_base::stop()
 {
-    std::lock_guard<std::mutex> lock(m_startStopMutex);
+    std::lock_guard<std::mutex> lock(m_tasksMutex);
     m_stop=true;
     m_transceiver.stop();
     m_wake.notify_all();
@@ -64,7 +64,8 @@ void Fastcgipp::Manager_base::stop()
 
 void Fastcgipp::Manager_base::start()
 {
-    std::lock_guard<std::mutex> lock(m_startStopMutex);
+    std::lock_guard<std::mutex> lock(m_tasksMutex);
+    DEBUG_LOG("Starting fastcgi++ manager")
     m_stop=false;
     m_terminate=false;
     m_transceiver.start();
@@ -103,22 +104,43 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
 	{
 		case SIGUSR1:
 		{
-			if(instance) instance->stop();
+			if(instance)
+            {
+                DEBUG_LOG("Received SIGUSR1. Stopping fastcgi++ manager.")
+                instance->stop();
+            }
+            else
+                WARNING_LOG("Received SIGUSR1 but fastcgi++ manager isn't "\
+                        "running")
 			break;
 		}
 		case SIGTERM:
 		{
-			if(instance) instance->terminate();
+			if(instance)
+            {
+                DEBUG_LOG("Received SIGTERM. Terminating fastcgi++ manager.")
+                instance->stop();
+            }
+            else
+                WARNING_LOG("Received SIGTERM but fastcgi++ manager isn't "\
+                        "running")
 			break;
 		}
 	}
 }
 
-void Fastcgipp::Manager_base::localHandler(
-        const Socket& socket,
-        Message& message)
+void Fastcgipp::Manager_base::localHandler()
 {
-	if(!message.type)
+    Message message;
+    Socket socket;
+    {
+        std::lock_guard<std::mutex> lock(m_messagesMutex);
+        message = std::move(m_messages.front().first);
+        socket = m_messages.front().second;
+        m_messages.pop();
+    }
+
+	if(message.type == 0)
 	{
 		const Protocol::Header& header=*(Protocol::Header*)message.data.data(); 
 		switch(header.type)
@@ -220,6 +242,8 @@ void Fastcgipp::Manager_base::localHandler(
 			}
 		}
 	}
+    else
+        ERROR_LOG("Got a non-FastCGI record destined for the manager")
 }
 
 void Fastcgipp::Manager_base::handler()
@@ -227,189 +251,127 @@ void Fastcgipp::Manager_base::handler()
     std::unique_lock<std::shared_timed_mutex> requestsWriteLock(
             m_requestsMutex,
             std::defer_lock);
-
-    std::shared_lock<std::shared_timed_mutex> tasksReadLock(
-            m_tasksMutex,
-            std::defer_lock);
-    std::unique_lock<std::shared_timed_mutex> tasksWriteLock(
-            m_tasksMutex,
-            std::defer_lock);
-
-    std::set<Protocol::RequestId, Protocol::RequestId::Less> busyRequests;
-
+    std::unique_lock<std::mutex> tasksLock(m_tasksMutex);
     std::shared_lock<std::shared_timed_mutex> requestsReadLock(m_requestsMutex);
-    std::unique_lock<std::mutex> wakeLock(m_startStopMutex);
 
     while(!m_terminate && !(m_stop && m_requests.empty()))
     {
         requestsReadLock.unlock();
-        wakeLock.unlock();
-
-        busyRequests.clear();
-        tasksReadLock.lock();
-        auto task = m_tasks.begin();
-        while(task != m_tasks.end())
+        while(!m_tasks.empty())
         {
-            std::unique_lock<std::mutex> taskLock(
-                    task->mutex,
-                    std::try_to_lock);
-            if(taskLock)
+            auto id = m_tasks.front();
+            m_tasks.pop();
+            tasksLock.unlock();
+
+            if(id.m_id == 0)
+                localHandler();
+            else
             {
-                // We have ownership over the task
-                tasksReadLock.unlock();
-                bool destroyTask = false;
+                requestsReadLock.lock();
+                auto request = m_requests.find(id);
+                if(request != m_requests.end())
+                {
+                    std::unique_lock<std::mutex> requestLock(
+                            request->second->mutex,
+                            std::try_to_lock);
+                    requestsReadLock.unlock();
 
-                if(task->id.m_id == 0)
-                {
-                    localHandler(task->id.m_socket, task->message);
-                    destroyTask = true;
-                }
-                else if(task->id.m_id == Protocol::badFcgiId)
-                {
-                    // Transceiver is telling us a socket has died. We should
-                    // destroy all it's associated requests.
-                    requestsWriteLock.lock();
-                    auto range = m_requests.equal_range(task->id.m_socket);
-                    auto request = range.first;
-                    while(request != range.second)
+                    if(requestLock)
                     {
-                        std::unique_lock<std::mutex> lock(
-                                request->second.mutex,
-                                std::try_to_lock);
-                        if(lock)
+                        auto lock = request->second->handler();
+                        if(!lock || !id.m_socket.valid())
                         {
+                            if(lock)
+                                lock.unlock();
+                            requestsWriteLock.lock();
+                            requestLock.unlock();
+                            m_requests.erase(request);
+                            requestsWriteLock.unlock();
+                        }
+                        else
+                        {
+                            requestLock.unlock();
                             lock.unlock();
-                            request = m_requests.erase(request);
-                        }
-                        else
-                            ++request;
-                    }
-                    requestsWriteLock.unlock();
-
-                    destroyTask = true;
-                }
-                else if(busyRequests.count(task->id) == 0)
-                {
-                    // The task is for a non-busy request
-                    requestsWriteLock.lock();
-                    auto request = m_requests.find(task->id);
-                    if(request == m_requests.end())
-                    {
-                        const Protocol::Header& header=
-                            *(Protocol::Header*)task->message.data.data();
-                        if(header.type == Protocol::RecordType::BEGIN_REQUEST)
-                        {
-                            const Protocol::BeginRequest& body
-                                =*(Protocol::BeginRequest*)(
-                                        task->message.data.data()
-                                        +sizeof(header));
-
-                            request = m_requests.emplace(
-                                    std::piecewise_construct,
-                                    std::forward_as_tuple(task->id),
-                                    std::forward_as_tuple()).first;
-
-                            std::lock_guard<std::mutex> requestLock(
-                                    request->second.mutex);
-                            requestsWriteLock.unlock();
-
-                            request->second.request = makeRequest(
-                                    task->id,
-                                    body.role,
-                                    body.kill());
-
-                            destroyTask = true;
-                        }
-                        else
-                        {
-                            DEBUG_LOG("Shouldn't be here")
-                            requestsWriteLock.unlock();
-                            busyRequests.insert(task->id);
                         }
                     }
-                    else
-                    {
-                        std::unique_lock<std::mutex> requestLock(
-                                request->second.mutex,
-                                std::try_to_lock);
-
-                        if(requestLock)
-                        {
-                            // We got ownership of the request
-                            requestsWriteLock.unlock();
-
-                            // The request already exists, pass the message along
-                            if(!request->first.m_socket.valid() ||
-                                    request->second.request->handler(
-                                        std::move(task->message)))
-                            {
-                                requestsWriteLock.lock();
-                                requestLock.unlock();
-                                m_requests.erase(request);
-                                requestsWriteLock.unlock();
-                            }
-                            else
-                                requestLock.unlock();
-
-                            destroyTask = true;
-                        }
-                        else
-                        {
-                            requestsWriteLock.unlock();
-                            // If we can do this task for this request, then we
-                            // shouldn't do any others farther down in the queue.
-                            busyRequests.insert(task->id);
-                        }
-                    }
-                }
-
-                if(destroyTask)
-                {
-                    tasksWriteLock.lock();
-                    taskLock.unlock();
-                    DEBUG_LOG("Erasing task")
-                    task = m_tasks.erase(task);
-                    tasksWriteLock.unlock();
-                    tasksReadLock.lock();
                 }
                 else
-                {
-                    tasksReadLock.lock();
-                    taskLock.unlock();
-                    ++task;
-                }
+                    requestsReadLock.unlock();
             }
-            else
-                ++task;
+            tasksLock.lock();
         }
 
-        if(m_tasks.empty())
-        {
-            tasksReadLock.unlock();
-
-            requestsReadLock.lock();
-            wakeLock.lock();
-            if(m_terminate || (m_stop && m_requests.empty()))
-                break;
-            requestsReadLock.unlock();
-
-            m_wake.wait(wakeLock);
-            requestsReadLock.lock();
-        }
-        else
-        {
-            tasksReadLock.unlock();
-            requestsReadLock.lock();
-            wakeLock.lock();
-        }
+        requestsReadLock.lock();
+        if(m_terminate || (m_stop && m_requests.empty()))
+            break;
+        requestsReadLock.unlock();
+        m_wake.wait(tasksLock);
+        requestsReadLock.lock();
     }
 }
 
 void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
 {
+    if(id.m_id == 0)
     {
-        std::lock_guard<std::shared_timed_mutex> lock(m_tasksMutex);
-        m_tasks.emplace_back(id, std::move(message));
+        std::lock_guard<std::mutex> lock(m_messagesMutex);
+        m_messages.push(std::make_pair(std::move(message), id.m_socket));
     }
+    else if(id.m_id == Protocol::badFcgiId)
+    {
+        std::lock_guard<std::shared_timed_mutex> lock(m_requestsMutex);
+        const auto range = m_requests.equal_range(id.m_socket);
+        auto request = range.first;
+        while(request != range.second)
+        {
+            std::unique_lock<std::mutex> lock(
+                    request->second->mutex,
+                    std::try_to_lock);
+            if(lock)
+            {
+                lock.unlock();
+                request = m_requests.erase(request);
+            }
+            else
+                ++request;
+        }
+        return;
+    }
+    else
+    {
+        std::unique_lock<std::shared_timed_mutex> lock(m_requestsMutex);
+        auto request = m_requests.find(id);
+        if(request == m_requests.end())
+        {
+            const Protocol::Header& header=
+                *(Protocol::Header*)message.data.data();
+            if(header.type == Protocol::RecordType::BEGIN_REQUEST)
+            {
+                const Protocol::BeginRequest& body
+                    =*(Protocol::BeginRequest*)(
+                            message.data.data()
+                            +sizeof(header));
+
+                request = m_requests.emplace(
+                        std::piecewise_construct,
+                        std::forward_as_tuple(id),
+                        std::forward_as_tuple()).first;
+
+                request->second = makeRequest(
+                        id,
+                        body.role,
+                        body.kill());
+                lock.unlock();
+            }
+            else
+                WARNING_LOG("Got a non BEGIN_REQUEST record for a request that"\
+                        " doesn't exist")
+            return;
+        }
+        else
+            request->second->push(std::move(message));
+    }
+    std::lock_guard<std::mutex> lock(m_tasksMutex);
+    m_tasks.push(id);
     m_wake.notify_one();
 }

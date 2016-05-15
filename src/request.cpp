@@ -54,105 +54,109 @@ template<class charT> void Fastcgipp::Request<charT>::complete()
     m_send(m_id.m_socket, std::move(record), m_kill);
 }
 
-template bool Fastcgipp::Request<char>::handler();
-template bool Fastcgipp::Request<wchar_t>::handler();
-template<class charT> bool Fastcgipp::Request<charT>::handler()
+template std::unique_lock<std::mutex> Fastcgipp::Request<char>::handler();
+template std::unique_lock<std::mutex> Fastcgipp::Request<wchar_t>::handler();
+template<class charT>
+std::unique_lock<std::mutex>Fastcgipp::Request<charT>::handler()
 {
-    Message message;
+    std::unique_lock<std::mutex> lock(m_messagesMutex);
+    while(!m_messages.empty())
     {
-        std::lock_guard<std::mutex> lock(m_messagesMutex);
-        if(m_messages.empty())
-            return false;
-        message = std::move(m_messages.front());
+        Message message = std::move(m_messages.front());
         m_messages.pop();
-    }
+        lock.unlock();
 
-    if(message.type == 0)
-    {
-        const Protocol::Header& header=*(Protocol::Header*)message.data.data();
-        const auto body = message.data.cbegin()+sizeof(header);
-        const auto bodyEnd = body+header.contentLength;
+        if(message.type == 0)
+        {
+            const Protocol::Header& header=*(Protocol::Header*)message.data.data();
+            const auto body = message.data.cbegin()+sizeof(header);
+            const auto bodyEnd = body+header.contentLength;
 
-        if(header.type == Protocol::RecordType::ABORT_REQUEST)
+            if(header.type == Protocol::RecordType::ABORT_REQUEST)
+            {
+                complete();
+                goto exit;
+            }
+
+            if(header.type != m_state)
+            {
+                WARNING_LOG("Records received out of order from web server")
+                errorHandler();
+                goto exit;
+            }
+
+            switch(m_state)
+            {
+                case Protocol::RecordType::PARAMS:
+                {
+                    if(!(
+                                role()==Protocol::Role::RESPONDER
+                                || role()==Protocol::Role::AUTHORIZER))
+                    {
+                        m_status = Protocol::ProtocolStatus::UNKNOWN_ROLE;
+                        WARNING_LOG("We got asked to do an unknown role")
+                        errorHandler();
+                        goto exit;
+                    }
+
+                    if(header.contentLength == 0) 
+                    {
+                        if(m_maxPostSize 
+                                && environment().contentLength > m_maxPostSize)
+                        {
+                            bigPostErrorHandler();
+                            goto exit;
+                        }
+                        m_state = Protocol::RecordType::IN;
+                        lock.lock();
+                        continue;
+                    }
+                    m_environment.fill(body,  bodyEnd);
+                    lock.lock();
+                    continue;
+                }
+
+                case Protocol::RecordType::IN:
+                {
+                    if(header.contentLength==0)
+                    {
+                        if(!inProcessor() && !m_environment.parsePostBuffer())
+                        {
+                            WARNING_LOG("Unknown content type from client")
+                            errorHandler();
+                            goto exit;
+                        }
+
+                        m_environment.clearPostBuffer();
+                        m_state = Protocol::RecordType::OUT;
+                        break;
+                    }
+
+                    m_environment.fillPostBuffer(body, bodyEnd);
+                    inHandler(header.contentLength);
+                    lock.lock();
+                    continue;
+                }
+
+                default:
+                {
+                    ERROR_LOG("Our request is in a weird state.")
+                    errorHandler();
+                    goto exit;
+                }
+            }
+        }
+
+        m_message = std::move(message);
+        if(response())
         {
             complete();
-            return true;
+            break;
         }
-
-        if(header.type != m_state)
-        {
-            WARNING_LOG("Records received out of order from web server")
-            errorHandler();
-            return true;
-        }
-
-        switch(m_state)
-        {
-            case Protocol::RecordType::PARAMS:
-            {
-                if(!(
-                            role()==Protocol::Role::RESPONDER
-                            || role()==Protocol::Role::AUTHORIZER))
-                {
-                    m_status = Protocol::ProtocolStatus::UNKNOWN_ROLE;
-                    WARNING_LOG("We got asked to do an unknown role")
-                    errorHandler();
-                    return true;
-                }
-
-                if(header.contentLength == 0) 
-                {
-                    if(m_maxPostSize 
-                            && environment().contentLength > m_maxPostSize)
-                    {
-                        bigPostErrorHandler();
-                        return true;
-                    }
-                    m_state = Protocol::RecordType::IN;
-                    return false;
-                }
-                m_environment.fill(body,  bodyEnd);
-                return false;
-            }
-
-            case Protocol::RecordType::IN:
-            {
-                if(header.contentLength==0)
-                {
-                    if(!inProcessor() && !m_environment.parsePostBuffer())
-                    {
-                        WARNING_LOG("Unknown content type from client")
-                        errorHandler();
-                        return true;
-                    }
-
-                    m_environment.clearPostBuffer();
-                    m_state = Protocol::RecordType::OUT;
-                    break;
-                }
-
-                m_environment.fillPostBuffer(body, bodyEnd);
-                inHandler(header.contentLength);
-                return false;
-            }
-
-            default:
-            {
-                ERROR_LOG("Our request is in a weird state.")
-                errorHandler();
-                return true;
-            }
-        }
+        lock.lock();
     }
-
-    m_message = std::move(message);
-    if(response())
-    {
-        complete();
-        return true;
-    }
-    else
-        return false;
+exit:
+    return lock;
 }
 
 template void Fastcgipp::Request<char>::errorHandler();

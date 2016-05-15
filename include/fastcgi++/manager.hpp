@@ -186,40 +186,23 @@ namespace Fastcgipp
         void push(Protocol::RequestId id, Message&& message);
 
 	private:
-        //! Queue items for our pending messages
-        struct Task
-        {
-            Protocol::RequestId id;
-            Message message;
-            std::mutex mutex;
-
-            Task(
-                    const Protocol::RequestId& id_,
-                    Message&& message_):
-                id(id_),
-                message(std::move(message_))
-            {}
-        };
-
 		//! Queue for pending tasks
-        std::list<Task> m_tasks;
+        std::queue<Protocol::RequestId> m_tasks;
 
         //! Thread safe our tasks
-        std::shared_timed_mutex m_tasksMutex;
-
-        //! Data structure to contain a request with a mutex
-        struct LockableRequest
-        {
-            std::mutex mutex;
-            std::unique_ptr<Request_base> request;
-        };
+        std::mutex m_tasksMutex;
 
         //! An associative container for our requests
-        Protocol::Requests<LockableRequest>
-            m_requests;
+        Protocol::Requests<std::unique_ptr<Request_base>> m_requests;
 
         //! Thread safe our requests
         std::shared_timed_mutex m_requestsMutex;
+
+        //! Local messages
+        std::queue<std::pair<Message, Socket>> m_messages;
+
+        //! Thread safe our local messages
+        std::mutex m_messagesMutex;
 
 		//! General handling function to have it's own thread
 		void handler();
@@ -228,11 +211,8 @@ namespace Fastcgipp
 		/*!
          * This function is called by handler() in the case that a management
          * message is recieved.
-		 *
-		 * @param[in] socket Socket to reply on.
-         * @param[in] message Message we are replying to.
 		 */
-		inline void localHandler(const Socket& socket, Message& message);
+		inline void localHandler();
 
         //! True when the manager should be terminating
         bool m_terminate;
