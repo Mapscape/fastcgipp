@@ -2,7 +2,7 @@
  * @file       log.hpp
  * @brief      Declares the Fastcgipp debugging/logging facilities
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 25, 2016
+ * @date       May 15, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -34,6 +34,7 @@
 #include <ostream>
 #include <mutex>
 #include <cstdlib>
+#include <string>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -44,17 +45,30 @@ namespace Fastcgipp
         //! The actual stream we will be logging to.
         extern std::wostream* logstream;
 
-        //! If true, we log the timestamp. If false, we don't.
-        extern bool logTimestamp;
-
         //! Thread safe the logging mechanism
         extern std::mutex mutex;
 
-        //! Send a timestamp to logstream if logTimestamp is true
-        void timestamp();
+        //! Hostname to use in logging
+        extern std::wstring hostname;
+
+        //! Application name to use in loggin
+        extern std::wstring program;
 
         //! Set to true if you want to suppress non-error logs
         extern bool suppress;
+
+        //! Communicate the log level to the header generator
+        enum Level
+        {
+            INFO = 0,
+            FAIL = 1,
+            ERROR = 2,
+            WARNING = 3,
+            DEBUG = 4
+        };
+
+        //! Send a log header to logstream
+        void header(Level level);
     }
 }
 
@@ -63,8 +77,8 @@ namespace Fastcgipp
     if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
-        ::Fastcgipp::Logging::timestamp();\
-        *::Fastcgipp::Logging::logstream << "[info] " << data << std::endl;\
+        ::Fastcgipp::Logging::header(::Fastcgipp::Logging::INFO);\
+        *::Fastcgipp::Logging::logstream << data << std::endl;\
     }}
 
 //! Log any "errors" that cannot be recovered from and then exit.
@@ -77,8 +91,8 @@ namespace Fastcgipp
     if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
-        ::Fastcgipp::Logging::timestamp();\
-        *::Fastcgipp::Logging::logstream << "[fail] " << data << std::endl;\
+        ::Fastcgipp::Logging::header(::Fastcgipp::Logging::FAIL);\
+        *::Fastcgipp::Logging::logstream << data << std::endl;\
         std::exit(EXIT_FAILURE);\
     }}
 
@@ -92,8 +106,8 @@ namespace Fastcgipp
 #define ERROR_LOG(data) \
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
-        ::Fastcgipp::Logging::timestamp();\
-        *::Fastcgipp::Logging::logstream << "[error] " << data << std::endl;\
+        ::Fastcgipp::Logging::header(::Fastcgipp::Logging::ERROR);\
+        *::Fastcgipp::Logging::logstream << data << std::endl;\
     }
 #else
 #define ERROR_LOG(data)
@@ -110,8 +124,8 @@ namespace Fastcgipp
     if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
-        ::Fastcgipp::Logging::timestamp();\
-        *::Fastcgipp::Logging::logstream << "[warning] " << data << std::endl;\
+        ::Fastcgipp::Logging::header(::Fastcgipp::Logging::WARNING);\
+        *::Fastcgipp::Logging::logstream << data << std::endl;\
     }}
 #else
 #define WARNING_LOG(data)
@@ -123,8 +137,8 @@ namespace Fastcgipp
     if(!::Fastcgipp::Logging::suppress)\
     { \
         std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
-        ::Fastcgipp::Logging::timestamp();\
-        *::Fastcgipp::Logging::logstream << "[debug] " << data << std::endl;\
+        ::Fastcgipp::Logging::header(::Fastcgipp::Logging::DEBUG);\
+        *::Fastcgipp::Logging::logstream << data << std::endl;\
     }}
 #else
 #define DEBUG_LOG(data)

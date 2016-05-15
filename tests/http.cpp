@@ -13,8 +13,6 @@
 
 int main()
 {
-    Fastcgipp::Logging::logTimestamp = true;  
-
     // Test Fastcgipp::Http::Address
     {
         const unsigned char randomAddress1Data[Fastcgipp::Http::Address::size] =

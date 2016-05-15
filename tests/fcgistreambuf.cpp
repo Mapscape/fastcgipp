@@ -302,7 +302,6 @@ void checker(const Fastcgipp::Socket& socket, std::vector<char>&& record)
 
 int main()
 {
-    Fastcgipp::Logging::logTimestamp = true;
     using Fastcgipp::Encoding;
     called = 0;
 

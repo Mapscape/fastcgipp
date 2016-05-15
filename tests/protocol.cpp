@@ -8,8 +8,6 @@
 
 int main()
 {
-    Fastcgipp::Logging::logTimestamp = true;  
-
     // Testing Fastcgipp::Protocol::BigEndian with a 64 bit signed integer
     {
         const int64_t actual = -0x62c74ce376736dd0;

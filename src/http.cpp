@@ -49,7 +49,7 @@ void Fastcgipp::Http::vecToString(
     }
     catch(const std::range_error& e)
     {
-        WARNING_LOG("Error in code conversion to from utf8")
+        WARNING_LOG("Error in code conversion from utf8")
     }
 }
 

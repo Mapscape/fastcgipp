@@ -2,7 +2,7 @@
  * @file       log.cpp
  * @brief      Defines the Fastcgipp debugging/logging facilities
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 25, 2016
+ * @date       May 15, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -31,26 +31,82 @@
 #include <iomanip>
 #include <iostream>
 #include <ctime>
-#include <chrono>
-#include <cmath>
+#include <codecvt>
+#include <cstring>
+#include <array>
+#include <sstream>
+
+#include <unistd.h>
+#include <limits.h>
+#include <sys/types.h>
+
+//! Topmost namespace for the fastcgi++ library
+namespace Fastcgipp
+{
+    //! Contains the Fastcgipp debugging/logging mechanism
+    namespace Logging
+    {
+        std::wstring getHostname()
+        {
+            char buffer[HOST_NAME_MAX+2];
+            gethostname(buffer, sizeof(buffer));
+            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+            try
+            {
+                return(converter.from_bytes(
+                            buffer,
+                            buffer+std::strlen(buffer)));
+            }
+            catch(const std::range_error& e)
+            {
+                WARNING_LOG("Error in hostname code conversion from utf8")
+                return std::wstring(L"localhost");
+            }
+
+        }
+
+        std::wstring getProgram()
+        {
+            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+            std::wostringstream ss;
+            try
+            {
+                ss << converter.from_bytes(
+                        program_invocation_name,
+                        program_invocation_name
+                            +std::strlen(program_invocation_name));
+            }
+            catch(const std::range_error& e)
+            {
+                WARNING_LOG("Error in program name code conversion from utf8")
+                ss << "unknown";
+            }
+
+            ss << '[' << getpid() << ']';
+            return ss.str();
+        }
+
+        std::array<std::wstring, 5> levels
+        {
+            L"[info]: ",
+            L"[fail]: ",
+            L"[error]: ",
+            L"[warning]: ",
+            L"[debug]: "
+        };
+    }
+}
 
 std::wostream* Fastcgipp::Logging::logstream(&std::wcerr);
-bool Fastcgipp::Logging::logTimestamp(true);
 std::mutex Fastcgipp::Logging::mutex;
 bool Fastcgipp::Logging::suppress(false);
+std::wstring Fastcgipp::Logging::hostname(Fastcgipp::Logging::getHostname());
+std::wstring Fastcgipp::Logging::program(Fastcgipp::Logging::getProgram());
 
-void Fastcgipp::Logging::timestamp()
+void Fastcgipp::Logging::header(Level level)
 {
-    if(logTimestamp)
-    {
-        const auto now = std::chrono::high_resolution_clock::now();
-        const auto nowTimeT = std::chrono::system_clock::to_time_t(now);
-        const auto ms =
-            (unsigned long)(std::chrono::duration<double, std::milli>(
-                now.time_since_epoch()).count())%1000;
-
-        *logstream
-            << std::put_time(std::localtime(&nowTimeT), L"[%Y-%b-%d %H:%M:%S.")
-            << ms << L"] ";
-    }
+    const std::time_t now = std::time(nullptr);
+    *logstream
+        << std::put_time(std::localtime(&now), L"%b %d %H:%M:%S ")
+        << hostname << ' ' << program << ' ' << levels[level];
 }
