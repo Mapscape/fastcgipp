@@ -2,7 +2,7 @@
  * @file       protocol.hpp
  * @brief      Declares everything for relating to the FastCGI protocol itself.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 11, 2016
+ * @date       May 16, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -186,7 +186,7 @@ namespace Fastcgipp
          *
          * @tparam T Type to emulate. Must be either an integral type or an
          *           enumeration who's underlying type is integral.
-         * @date    March 6, 2016
+         * @date    May 16, 2016
          * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
          */
         template<typename T> class BigEndian
@@ -201,9 +201,14 @@ namespace Fastcgipp
             //! Set the internal data to the passed parameter.
             void set(T x)
             {
-                BaseType& y = *(BaseType*)&x;
+                union
+                {
+                    BaseType base;
+                    T actual;
+                };
+                actual = x;
                 for(unsigned int i=0; i<sizeof(T); ++i)
-                    m_data[i] = (unsigned char)(0xff & y>>8*(sizeof(T)-1-i));
+                    m_data[i] = (unsigned char)(0xff & base>>8*(sizeof(T)-1-i));
             }
 
         public:
@@ -236,12 +241,17 @@ namespace Fastcgipp
              */
             static T read(const unsigned char* source)
             {
-                BaseType x=0;
+                union
+                {
+                    BaseType base;
+                    T actual;
+                };
+                base = 0;
 
                 for(unsigned int i=0; i<sizeof(T); ++i)
-                    x |= (BaseType)*(source+i) << 8*(sizeof(T)-1-i);
+                    base |= (BaseType)*(source+i) << 8*(sizeof(T)-1-i);
 
-                return *(T*)&x;
+                return actual;
             }
 
             //! Simply casts char to unsigned char.
