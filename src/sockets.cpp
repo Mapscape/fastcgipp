@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 24, 2016
+ * @date       May 16, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -84,6 +84,10 @@ ssize_t Fastcgipp::Socket::read(char* buffer, size_t size) const
         return -1;
     }
 
+#if FASTCGIPP_LOG_LEVEL > 2
+    m_data->m_group.m_bytesReceived += count;
+#endif
+
     return count;
 }
 
@@ -100,6 +104,11 @@ ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size) const
         close();
         return -1;
     }
+
+#if FASTCGIPP_LOG_LEVEL > 2
+    m_data->m_group.m_bytesSent += count;
+#endif
+
     return count;
 }
 
@@ -112,6 +121,9 @@ void Fastcgipp::Socket::close() const
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
         m_data->m_group.m_sockets.erase(m_data->m_socket);
+#if FASTCGIPP_LOG_LEVEL > 2
+        ++m_data->m_group.m_connectionKillCount;
+#endif
     }
 }
 
@@ -123,6 +135,9 @@ Fastcgipp::Socket::~Socket()
         ::close(m_data->m_socket);
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
+#if FASTCGIPP_LOG_LEVEL > 2
+        ++m_data->m_group.m_connectionKillCount;
+#endif
     }
 }
 
@@ -133,10 +148,18 @@ Fastcgipp::SocketGroup::SocketGroup():
     m_waking(false),
     m_accept(true),
     m_refreshListeners(false)
+#if FASTCGIPP_LOG_LEVEL > 2
+    ,m_incomingConnectionCount(0),
+    m_connectionKillCount(0),
+    m_connectionRDHupCount(0),
+    m_bytesSent(0),
+    m_bytesReceived(0)
+#endif
 {
     // Add our wakeup socket into the poll list
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
     pollAdd(m_wakeSockets[1]);
+    DEBUG_LOG("SocketGroup::SocketGroup(): Initialized ")
 }
 
 Fastcgipp::SocketGroup::~SocketGroup()
@@ -151,6 +174,15 @@ Fastcgipp::SocketGroup::~SocketGroup()
         ::shutdown(listener, SHUT_RDWR);
         ::close(listener);
     }
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Incoming connections = " \
+            << m_incomingConnectionCount)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Locally closed connections = " \
+            << m_connectionKillCount)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Remotely closed connections = " \
+            << m_connectionKillCount)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes sent = " << m_bytesSent)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes received = " \
+            << m_bytesReceived)
 }
 
 bool Fastcgipp::SocketGroup::listen()
@@ -506,7 +538,12 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 }
 
                 if(events & pollRdHup)
+                {
                     socket->second.m_data->m_closing=true;
+#if FASTCGIPP_LOG_LEVEL > 2
+                    ++m_connectionRDHupCount;
+#endif
+                }
                 else if(events & pollHup)
                 {
                     WARNING_LOG("Socket " << socketId << " hung up")
@@ -566,9 +603,14 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
     }
 
     if(m_accept)
+    {
         m_sockets.emplace(
                 socket,
                 std::move(Socket(socket, *this)));
+#if FASTCGIPP_LOG_LEVEL > 2
+        ++m_incomingConnectionCount;
+#endif
+    }
     else
         close(socket);
 }

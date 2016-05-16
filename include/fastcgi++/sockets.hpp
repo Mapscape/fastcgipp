@@ -449,6 +449,23 @@ namespace Fastcgipp
 
         //! Remove a socket identifier to the poll list
         bool pollDel(const socket_t socket);
+
+#if FASTCGIPP_LOG_LEVEL > 2
+        //! Debug counter for incoming connections
+        std::atomic_ullong m_incomingConnectionCount;
+
+        //! Debug counter for locally killed sockets
+        std::atomic_ullong m_connectionKillCount;
+
+        //! Debug counter for remotely hung up sockets
+        std::atomic_ullong m_connectionRDHupCount;
+
+        //! Debug counter for bytes sent
+        std::atomic_ullong m_bytesSent;
+
+        //! Debug counter for bytes received
+        std::atomic_ullong m_bytesReceived;
+#endif
     };
 }
 
