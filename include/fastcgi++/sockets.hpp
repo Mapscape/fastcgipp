@@ -454,6 +454,9 @@ namespace Fastcgipp
         //! Debug counter for incoming connections
         std::atomic_ullong m_incomingConnectionCount;
 
+        //! Debug counter for outgoing connections
+        std::atomic_ullong m_outgoingConnectionCount;
+
         //! Debug counter for locally killed sockets
         std::atomic_ullong m_connectionKillCount;
 

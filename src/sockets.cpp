@@ -80,6 +80,9 @@ ssize_t Fastcgipp::Socket::read(char* buffer, size_t size) const
     }
     if(count == 0 && m_data->m_closing)
     {
+#if FASTCGIPP_LOG_LEVEL > 2
+        ++m_data->m_group.m_connectionRDHupCount;
+#endif
         close();
         return -1;
     }
@@ -122,7 +125,8 @@ void Fastcgipp::Socket::close() const
         m_data->m_group.pollDel(m_data->m_socket);
         m_data->m_group.m_sockets.erase(m_data->m_socket);
 #if FASTCGIPP_LOG_LEVEL > 2
-        ++m_data->m_group.m_connectionKillCount;
+        if(!m_data->m_closing)
+            ++m_data->m_group.m_connectionKillCount;
 #endif
     }
 }
@@ -135,9 +139,6 @@ Fastcgipp::Socket::~Socket()
         ::close(m_data->m_socket);
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
-#if FASTCGIPP_LOG_LEVEL > 2
-        ++m_data->m_group.m_connectionKillCount;
-#endif
     }
 }
 
@@ -150,6 +151,7 @@ Fastcgipp::SocketGroup::SocketGroup():
     m_refreshListeners(false)
 #if FASTCGIPP_LOG_LEVEL > 2
     ,m_incomingConnectionCount(0),
+    m_outgoingConnectionCount(0),
     m_connectionKillCount(0),
     m_connectionRDHupCount(0),
     m_bytesSent(0),
@@ -174,13 +176,17 @@ Fastcgipp::SocketGroup::~SocketGroup()
         ::shutdown(listener, SHUT_RDWR);
         ::close(listener);
     }
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Incoming connections = " \
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Incoming sockets ======== " \
             << m_incomingConnectionCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Locally closed connections = " \
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Outgoing sockets ======== " \
+            << m_outgoingConnectionCount)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Locally closed sockets == " \
             << m_connectionKillCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Remotely closed connections = " \
-            << m_connectionKillCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes sent = " << m_bytesSent)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Remotely closed sockets = " \
+            << m_connectionRDHupCount)
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Remaining sockets ======= " \
+            << m_sockets.size())
+    DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes sent ===== " << m_bytesSent)
     DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes received = " \
             << m_bytesReceived)
 }
@@ -360,6 +366,10 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::connect(const char* name)
         return Socket();
     }
 
+#if FASTCGIPP_LOG_LEVEL > 2
+    ++m_outgoingConnectionCount;
+#endif
+
     return m_sockets.emplace(
             fd,
             std::move(Socket(fd, *this))).first->second;
@@ -418,6 +428,10 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::connect(
         ERROR_LOG("Unable to connect to " << host << ":" << service)
         return Socket();
     }
+
+#if FASTCGIPP_LOG_LEVEL > 2
+    ++m_outgoingConnectionCount;
+#endif
 
     return m_sockets.emplace(
             fd,
@@ -538,12 +552,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::poll(bool block)
                 }
 
                 if(events & pollRdHup)
-                {
                     socket->second.m_data->m_closing=true;
-#if FASTCGIPP_LOG_LEVEL > 2
-                    ++m_connectionRDHupCount;
-#endif
-                }
                 else if(events & pollHup)
                 {
                     WARNING_LOG("Socket " << socketId << " hung up")

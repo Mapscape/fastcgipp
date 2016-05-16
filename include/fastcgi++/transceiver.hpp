@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Declares the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 14, 2016
+ * @date       May 16, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -51,7 +51,7 @@ namespace Fastcgipp
      * level sockets and also the creation/destruction of the sockets
      * themselves.
      *
-     * @date    May 13, 2016
+     * @date    May 16, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class Transceiver
@@ -115,10 +115,7 @@ namespace Fastcgipp
                 const std::function<void(Protocol::RequestId, Message&&)>
                 sendMessage);
 
-        ~Transceiver()
-        {
-            terminate();
-        }
+        ~Transceiver();
 
         //! Listen to the default Fastcgi socket
         /*!
@@ -230,6 +227,23 @@ namespace Fastcgipp
 
         //! Cleanup a dead socket
         void cleanupSocket(const Socket& socket);
+
+#if FASTCGIPP_LOG_LEVEL > 2
+        //! Debug counter for locally killed sockets
+        std::atomic_ullong m_connectionKillCount;
+
+        //! Debug counter for remotely hung up sockets
+        std::atomic_ullong m_connectionRDHupCount;
+
+        //! Debug counter for records sent
+        std::atomic_ullong m_recordsSent;
+
+        //! Debug counter for records queued for sending
+        std::atomic_ullong m_recordsQueued;
+
+        //! Debug counter for bytes received
+        std::atomic_ullong m_recordsReceived;
+#endif
     };
 }
 

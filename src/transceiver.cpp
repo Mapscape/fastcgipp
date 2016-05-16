@@ -2,7 +2,7 @@
  * @file       transceiver.hpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 14, 2016
+ * @date       May 16, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -55,8 +55,17 @@ bool Fastcgipp::Transceiver::transmit()
                 }
                 return false;
             }
+#if FASTCGIPP_LOG_LEVEL > 2
+            ++m_recordsSent;
+#endif
             if(record->kill)
+            {
                 record->socket.close();
+#if FASTCGIPP_LOG_LEVEL > 2
+                m_receiveBuffers.erase(record->socket);
+                ++m_connectionKillCount;
+#endif
+            }
         }
     }
 
@@ -111,7 +120,15 @@ void Fastcgipp::Transceiver::join()
 Fastcgipp::Transceiver::Transceiver(
         const std::function<void(Protocol::RequestId, Message&&)> sendMessage):
     m_sendMessage(sendMessage)
+#if FASTCGIPP_LOG_LEVEL > 2
+    ,m_connectionKillCount(0),
+    m_connectionRDHupCount(0),
+    m_recordsSent(0),
+    m_recordsQueued(0),
+    m_recordsReceived(0)
+#endif
 {
+    DEBUG_LOG("Transceiver::Transciever(): Initialized")
 }
 
 void Fastcgipp::Transceiver::receive(Socket& socket)
@@ -171,9 +188,10 @@ void Fastcgipp::Transceiver::receive(Socket& socket)
         m_sendMessage(
                 Protocol::RequestId(header.fcgiId, socket),
                 std::move(message));
+#if FASTCGIPP_LOG_LEVEL > 2
+        ++m_recordsReceived;
+#endif
     }
-    else
-        cleanupSocket(socket);
 }
 
 void Fastcgipp::Transceiver::cleanupSocket(const Socket& socket)
@@ -182,6 +200,10 @@ void Fastcgipp::Transceiver::cleanupSocket(const Socket& socket)
     m_sendMessage(
             Fastcgipp::Protocol::RequestId(Protocol::badFcgiId, socket),
             Message());
+    socket.close();
+#if FASTCGIPP_LOG_LEVEL > 2
+    ++m_connectionRDHupCount;
+#endif
 }
 
 void Fastcgipp::Transceiver::send(
@@ -198,4 +220,24 @@ void Fastcgipp::Transceiver::send(
         m_sendBuffer.push_back(std::move(record));
     }
     m_sockets.wake();
+#if FASTCGIPP_LOG_LEVEL > 2
+    ++m_recordsQueued;
+#endif
+}
+
+Fastcgipp::Transceiver::~Transceiver()
+{
+    terminate();
+    DEBUG_LOG("Transceiver::~Transceiver(): Locally closed sockets ==== " \
+            << m_connectionKillCount)
+    DEBUG_LOG("Transceiver::~Transceiver(): Remotely closed sockets === " \
+            << m_connectionRDHupCount)
+    DEBUG_LOG("Transceiver::~Transceiver(): Remaining receive buffers = " \
+            << m_receiveBuffers.size())
+    DEBUG_LOG("Transceiver::~Transceiver(): Records queued === " \
+            << m_recordsQueued)
+    DEBUG_LOG("Transceiver::~Transceiver(): Records sent ===== " \
+            << m_recordsSent)
+    DEBUG_LOG("Transceiver::~Transceiver(): Records received = " \
+            << m_recordsReceived)
 }
