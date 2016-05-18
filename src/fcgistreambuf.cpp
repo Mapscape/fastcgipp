@@ -34,8 +34,8 @@
 
 namespace Fastcgipp
 {
-    template <>
-    bool Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::emptyBuffer()
+    template <> bool
+    Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::emptyBuffer()
     {
         const std::codecvt_utf8<char_type> converter;
         std::codecvt_base::result result;
@@ -82,7 +82,7 @@ namespace Fastcgipp
                 toNext-record.data()-sizeof(Protocol::Header);
             header.paddingLength =
                 record.size()-header.contentLength-sizeof(Protocol::Header);
-            
+
             send(m_id.m_socket, std::move(record));
         }
 
@@ -124,7 +124,7 @@ namespace Fastcgipp
             header.fcgiId = m_id.m_id;
             header.paddingLength =
                 record.size()-header.contentLength-sizeof(Protocol::Header);
-            
+
             send(m_id.m_socket, std::move(record));
         }
 
@@ -157,7 +157,9 @@ void Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::dump(
         const char* data,
         size_t size);
 template <class charT, class traits>
-void Fastcgipp::FcgiStreambuf<charT, traits>::dump(const char* data, size_t size)
+void Fastcgipp::FcgiStreambuf<charT, traits>::dump(
+        const char* data,
+        size_t size)
 {
     std::vector<char> record;
 
@@ -193,7 +195,7 @@ void Fastcgipp::FcgiStreambuf<charT, traits>::dump(const char* data, size_t size
         header.fcgiId = m_id.m_id;
         header.paddingLength =
             record.size()-header.contentLength-sizeof(Protocol::Header);
-        
+
         send(m_id.m_socket, std::move(record));
     }
 }
@@ -205,7 +207,8 @@ template
 void Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::dump(
         std::basic_istream<char>& stream);
 template <class charT, class traits>
-void Fastcgipp::FcgiStreambuf<charT, traits>::dump(std::basic_istream<char>& stream)
+void Fastcgipp::FcgiStreambuf<charT, traits>::dump(
+        std::basic_istream<char>& stream)
 {
     std::vector<char> record;
     const ssize_t maxContentLength = 0xffff;
@@ -232,7 +235,7 @@ void Fastcgipp::FcgiStreambuf<charT, traits>::dump(std::basic_istream<char>& str
         header.fcgiId = m_id.m_id;
         header.paddingLength =
             record.size()-header.contentLength-sizeof(Protocol::Header);
-        
+
         send(m_id.m_socket, std::move(record));
     } while(stream.gcount() < maxContentLength);
 }

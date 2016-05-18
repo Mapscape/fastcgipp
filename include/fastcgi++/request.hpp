@@ -106,7 +106,6 @@ namespace Fastcgipp
          *                    for post data. Any data beyond this size would
          *                    result in a call to bigPostErrorHandler(). A
          *                    value of 0 represents unlimited.
-         
          */
         Request(const size_t maxPostSize=0):
             out(&m_outStreamBuffer),
@@ -148,7 +147,7 @@ namespace Fastcgipp
         {
             return m_environment;
         }
-        
+
         //! Standard output stream to the client
         std::basic_ostream<charT> out;
 
@@ -180,7 +179,6 @@ namespace Fastcgipp
 
         //! Callback function for dealings outside the fastcgi++ library
         /*!
-         
          * The purpose of the callback function is to provide a thread safe
          * mechanism for functions and classes outside the fastcgi++ library to
          * talk to the requests. Should the library wish to have another thread

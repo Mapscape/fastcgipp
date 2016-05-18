@@ -45,9 +45,9 @@
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
-	//! General task and protocol management class base
-	/*!
-	 * Handles all task and protocol management, creation/destruction of
+    //! General task and protocol management class base
+    /*!
+     * Handles all task and protocol management, creation/destruction of
      * requests and passing of messages to requests.
      *
      * To operate this class you need to do the following:
@@ -59,42 +59,42 @@ namespace Fastcgipp
      *
      * @date    May 18, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
-	 */
-	class Manager_base
-	{
-	public:
+     */
+    class Manager_base
+    {
+    public:
         //! Sole constructor
         /*!
          * @param[in] threads Number of threads to use for request handling
          */
-		Manager_base(unsigned threads);
+        Manager_base(unsigned threads);
 
-		~Manager_base();
+        ~Manager_base();
 
         //! Call from any thread to terminate the Manager
-		/*!
+        /*!
          * This function is intended to be called from a thread separate from
          * the Manager in order to terminate it. It should also be called by a
          * signal handler in the case of of a SIGTERM. It will force the manager
          * to terminate immediately.
-		 *
+         *
          * @sa join()
-		 * @sa setupSignals()
-		 * @sa signalHandler()
-		 */
-		void terminate();
+         * @sa setupSignals()
+         * @sa signalHandler()
+         */
+        void terminate();
 
         //! Call from any thread to stop the Manager
-		/*!
+        /*!
          * This function is intended to be called from a signal handler in the
          * case of of a SIGUSR1. It is similar to terminate() except the
          * Manager will wait until all requests are complete before halting.
-		 *
+         *
          * @sa join()
-		 * @sa setupSignals()
-		 * @sa signalHandler()
-		 */
-		void stop();
+         * @sa setupSignals()
+         * @sa signalHandler()
+         */
+        void stop();
 
         //! Call from any thread to start the Manager
         /*!
@@ -104,15 +104,15 @@ namespace Fastcgipp
 
         //! Block until a stop() or terminate() is called and completed
         void join();
-		
-		//! Configure the handlers for POSIX signals
-		/*!
+
+        //! Configure the handlers for POSIX signals
+        /*!
          * By calling this function appropriate handlers will be set up for
          * SIGPIPE, SIGUSR1 and SIGTERM.
-		 *
-		 * @sa signalHandler()
-		 */
-		static void setupSignals();
+         *
+         * @sa signalHandler()
+         */
+        static void setupSignals();
 
         //! Listen to the default Fastcgi socket
         /*!
@@ -176,14 +176,14 @@ namespace Fastcgipp
                 const Protocol::Role& role,
                 bool kill) =0;
 
-		//! Handles low level communication with the other side
-		Transceiver m_transceiver;
+        //! Handles low level communication with the other side
+        Transceiver m_transceiver;
 
         //! Pass a message to a request
         void push(Protocol::RequestId id, Message&& message);
 
-	private:
-		//! Queue for pending tasks
+    private:
+        //! Queue for pending tasks
         std::queue<Protocol::RequestId> m_tasks;
 
         //! Thread safe our tasks
@@ -201,15 +201,15 @@ namespace Fastcgipp
         //! Thread safe our local messages
         std::mutex m_messagesMutex;
 
-		//! General handling function to have it's own thread
-		void handler();
+        //! General handling function to have it's own thread
+        void handler();
 
-		//! Handles management messages
-		/*!
+        //! Handles management messages
+        /*!
          * This function is called by handler() in the case that a management
          * message is recieved.
-		 */
-		inline void localHandler();
+         */
+        inline void localHandler();
 
         //! True when the manager should be terminating
         bool m_terminate;
@@ -226,11 +226,11 @@ namespace Fastcgipp
         //! Condition variable to wake handler() threads up
         std::condition_variable m_wake;
 
-		//! General function to handler POSIX signals
-		static void signalHandler(int signum);
+        //! General function to handler POSIX signals
+        static void signalHandler(int signum);
 
-		//! Pointer to the %Manager object
-		static Manager_base* instance;
+        //! Pointer to the %Manager object
+        static Manager_base* instance;
 
 #if FASTCGIPP_LOG_LEVEL > 3
         //! Debug counter for new requests
@@ -257,14 +257,14 @@ namespace Fastcgipp
         //! Debug counter max active handler() threads
         unsigned m_maxActiveThreads;
 #endif
-	};
-	
-	//! General task and protocol management class
-	/*!
-	 * Handles all task and protocol management, creation/destruction of
-	 * requests and passing of messages to requests. The template argument
-	 * should be a class type derived from the Request class with at least the
-	 * response() function defined.
+    };
+
+    //! General task and protocol management class
+    /*!
+     * Handles all task and protocol management, creation/destruction of
+     * requests and passing of messages to requests. The template argument
+     * should be a class type derived from the Request class with at least the
+     * response() function defined.
      *
      * To operate this class you need to do the following:
      *  - Construct a Manager object
@@ -278,19 +278,19 @@ namespace Fastcgipp
      *
      * @date    May 13, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
-	 */
-	template<class RequestT> class Manager: public Manager_base
-	{
-	public:
+     */
+    template<class RequestT> class Manager: public Manager_base
+    {
+    public:
         //! Sole constructor
         /*!
          * @param[in] threads Number of threads to use for request handling
          */
-		Manager(unsigned threads = std::thread::hardware_concurrency()):
+        Manager(unsigned threads = std::thread::hardware_concurrency()):
             Manager_base(threads)
         {}
 
-	private:
+    private:
         //! Make a request object
         std::unique_ptr<Request_base> makeRequest(
                 const Protocol::RequestId& id,
@@ -309,7 +309,7 @@ namespace Fastcgipp
             return request;
         }
 
-	};
+    };
 }
 
 #endif

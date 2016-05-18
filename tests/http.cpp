@@ -20,7 +20,7 @@ int main()
             0xcc, 0x22, 0x40, 0x08, 0x79, 0xa1, 0xc1, 0x78, 0x05, 0xc5, 0x88,
             0x2a, 0x19, 0x0d, 0x7f, 0xbf
         };
-        const char randomAddress1String[] = 
+        const char randomAddress1String[] =
             "cc22:4008:79a1:c178:5c5:882a:190d:7fbf";
         const Fastcgipp::Http::Address randomAddress1(randomAddress1Data);
 
@@ -32,7 +32,7 @@ int main()
         const char randomAddress2String[] = "ce9c:5116:7817::8d97:0:e755";
         const Fastcgipp::Http::Address randomAddress2(randomAddress2Data);
 
-        const unsigned char ipv4AddressData[Fastcgipp::Http::Address::size] =            
+        const unsigned char ipv4AddressData[Fastcgipp::Http::Address::size] =
         {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff,
             0xff, 0xb3, 0x7c, 0x83, 0x91
@@ -41,9 +41,9 @@ int main()
         const char ipv4AddressStringOld[] = "179.124.131.145";
         const Fastcgipp::Http::Address ipv4Address(ipv4AddressData);
 
-        const char badAddressString1[] = 
+        const char badAddressString1[] =
             "cc22:4008:79a1:c178:5y5:882a:190d:7fbf";
-        const char badAddressString2[] = 
+        const char badAddressString2[] =
             "cc22:4008:79a1:c178:5c5:190d:7fbf";
 
         std::list<Fastcgipp::Http::Address> correctAddresses;
@@ -226,7 +226,7 @@ int main()
             0x68, 0x60, 0x36, 0x03, 0x76
         };
 
-        const char string2[] = 
+        const char string2[] =
             "J7HnFFjNaN8pNQbYKGpmZFbWHe6kxO0odRpic7d5tUkZ7egpEYaMxpROrDRettPhNw"
             "9cfQ21kRq6l5keGUA9S8C7S+pod8POUBVFHYIJTGHwVzr1RWpPzUdB4w8qc548dvkA"
             "NrM08to4P/3UvyOXDG0Wbqz4h4OH/P7knu/BitK3JDTBus4/kP0hi1MWWKKrr6NPTt"
@@ -296,7 +296,7 @@ int main()
             0x85, 0x0e, 0x71, 0xfa, 0x5b, 0x79, 0x69, 0x85, 0xf6, 0xe7, 0xfa,
             0x9e, 0xa6, 0xa3, 0x58, 0x04, 0x73, 0x9b, 0x3f, 0xe4, 0x8a, 0xd4,
             0x41, 0x5d, 0x2c, 0x0a, 0x02, 0x6e, 0x32, 0x42, 0xea, 0x73, 0x6f,
-            0xbd, 0x29, 0x31, 0xdb, 0x27, 0xfc, 0x30, 0x31, 0x81, 0x84, 
+            0xbd, 0x29, 0x31, 0xdb, 0x27, 0xfc, 0x30, 0x31, 0x81, 0x84,
         };
 
         std::array<char, 1024> string;
@@ -525,7 +525,7 @@ int main()
                         environment.contentType != L"multipart/form-data" ||
                         environment.root != L"/var/www/localhost/htdocs" ||
                         environment.scriptName != L"/examples/echo.fcgi" ||
-                        environment.requestMethod != 
+                        environment.requestMethod !=
                             Fastcgipp::Http::RequestMethod::POST ||
                         environment.contentLength != 59071 ||
                         environment.requestUri != L"/examples/echo.fcgi/this/is"
@@ -636,7 +636,7 @@ int main()
                         environment.contentType != L"application/x-www-form-urlencoded" ||
                         environment.root != L"/var/www/localhost/htdocs" ||
                         environment.scriptName != L"/examples/echo.fcgi" ||
-                        environment.requestMethod != 
+                        environment.requestMethod !=
                             Fastcgipp::Http::RequestMethod::POST ||
                         environment.contentLength != 98 ||
                         environment.requestUri != L"/examples/echo.fcgi/this/is"

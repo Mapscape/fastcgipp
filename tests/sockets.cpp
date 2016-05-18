@@ -192,7 +192,7 @@ void client()
 
     if(group.size())
         FAIL_LOG("Client has active sockets when it shouldn't")
-    
+
     std::lock_guard<std::mutex> lock(doneMutex);
     done=true;
     serverGroup->wake();
@@ -235,7 +235,7 @@ void server()
         {
             const Fastcgipp::Socket& socket = pair.first;
             Buffer& buffer = pair.second;
-            
+
             if(socket.valid() && buffer.sending)
             {
                 const ssize_t sent = socket.write(

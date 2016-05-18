@@ -58,7 +58,7 @@ int main()
                 passedEnd,
                 nameResult,
                 valueResult,
-                endResult);        
+                endResult);
 
         if(((passedEnd==body.cend())!=retVal) || (retVal && !(
                 nameResult == name &&
@@ -80,7 +80,7 @@ int main()
         const std::vector<char>::const_iterator value = name+nameSize;
         const std::vector<char>::const_iterator end = value+valueSize;
         body[0] = (char)nameSize;
-        *(Fastcgipp::Protocol::BigEndian<int32_t>*)&body[1] 
+        *(Fastcgipp::Protocol::BigEndian<int32_t>*)&body[1]
             = (uint32_t)valueSize;
         body[1] |= 0x80;
 
@@ -96,7 +96,7 @@ int main()
                 passedEnd,
                 nameResult,
                 valueResult,
-                endResult);        
+                endResult);
 
         if(((passedEnd==body.cend())!=retVal) || (retVal && !(
                 nameResult == name &&
@@ -117,7 +117,7 @@ int main()
         const std::vector<char>::const_iterator name = body.cbegin()+5;
         const std::vector<char>::const_iterator value = name+nameSize;
         const std::vector<char>::const_iterator end = value+valueSize;
-        *(Fastcgipp::Protocol::BigEndian<int32_t>*)body.data() 
+        *(Fastcgipp::Protocol::BigEndian<int32_t>*)body.data()
             = (uint32_t)nameSize;
         body[0] |= 0x80;
         body[4] = (char)valueSize;
@@ -134,7 +134,7 @@ int main()
                 passedEnd,
                 nameResult,
                 valueResult,
-                endResult);        
+                endResult);
 
         if(((passedEnd==body.cend())!=retVal) || (retVal && !(
                 nameResult == name &&
@@ -158,7 +158,7 @@ int main()
         *(Fastcgipp::Protocol::BigEndian<int32_t>*)body.data()
             = (uint32_t)nameSize;
         body[0] |= 0x80;
-        *(Fastcgipp::Protocol::BigEndian<int32_t>*)&body[4] 
+        *(Fastcgipp::Protocol::BigEndian<int32_t>*)&body[4]
             = (uint32_t)valueSize;
         body[4] |= 0x80;
 
@@ -174,7 +174,7 @@ int main()
                 passedEnd,
                 nameResult,
                 valueResult,
-                endResult);        
+                endResult);
 
         if(((passedEnd==body.cend())!=retVal) || (retVal && !(
                 nameResult == name &&

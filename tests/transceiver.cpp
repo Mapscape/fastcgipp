@@ -203,7 +203,7 @@ void client()
                 ++connections;
             }
             request->second.resize(sizeof(FullMessage));
-            Fastcgipp::Protocol::Header& header = 
+            Fastcgipp::Protocol::Header& header =
                 *(Fastcgipp::Protocol::Header*)request->second.data();
             header.fcgiId = request->first.m_id;
             header.contentLength = messageSize-51;
@@ -230,7 +230,7 @@ void client()
             ssize_t sent=0;
             for(
                     auto i=request->second.cbegin();
-                    i<request->second.cend(); 
+                    i<request->second.cend();
                     i += sent)
             {
                 sent = request->first.m_socket.write(

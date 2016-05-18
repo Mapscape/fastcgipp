@@ -314,7 +314,7 @@ int main()
                     Fastcgipp::Socket()),
                 Fastcgipp::Protocol::RecordType::OUT,
                 checker);
-        
+
         std::basic_ostream<wchar_t> out(&streambuf);
         out << "In botany, a tree is a perennial plant with an elongated stem, "
             "or trunk, supporting branches and leaves in most species. In some "
@@ -366,7 +366,7 @@ int main()
                     Fastcgipp::Socket()),
                 Fastcgipp::Protocol::RecordType::OUT,
                 checker);
-        
+
         std::basic_ostream<char> out(&streambuf);
         out << "In botany, a tree is a perennial plant with an elongated stem, "
             "or trunk, supporting branches and leaves in most species. In some "

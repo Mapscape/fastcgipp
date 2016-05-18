@@ -46,7 +46,7 @@ namespace Fastcgipp
      * @endcode
      *
      * When output encoding is set to NONE, no character translation takes place.
-     * HTML and URL encoding is described by the following table. 
+     * HTML and URL encoding is described by the following table.
      *
      * <b>HTML</b>
      * <table>

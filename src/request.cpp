@@ -45,8 +45,8 @@ template<class charT> void Fastcgipp::Request<charT>::complete()
     header.fcgiId = m_id.m_id;
     header.contentLength = sizeof(Protocol::EndRequest);
     header.paddingLength = 0;
-    
-    Protocol::EndRequest& body = 
+
+    Protocol::EndRequest& body =
         *(Protocol::EndRequest*)(record.data()+sizeof(header));
     body.appStatus = 0;
     body.protocolStatus = m_status;
@@ -68,7 +68,8 @@ std::unique_lock<std::mutex>Fastcgipp::Request<charT>::handler()
 
         if(message.type == 0)
         {
-            const Protocol::Header& header=*(Protocol::Header*)message.data.data();
+            const Protocol::Header& header =
+                *(Protocol::Header*)message.data.data();
             const auto body = message.data.cbegin()+sizeof(header);
             const auto bodyEnd = body+header.contentLength;
 
@@ -99,9 +100,9 @@ std::unique_lock<std::mutex>Fastcgipp::Request<charT>::handler()
                         goto exit;
                     }
 
-                    if(header.contentLength == 0) 
+                    if(header.contentLength == 0)
                     {
-                        if(m_maxPostSize 
+                        if(m_maxPostSize
                                 && environment().contentLength > m_maxPostSize)
                         {
                             bigPostErrorHandler();

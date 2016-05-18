@@ -99,23 +99,23 @@ void Fastcgipp::Manager_base::join()
 #include <signal.h>
 void Fastcgipp::Manager_base::setupSignals()
 {
-	struct sigaction sigAction;
-	sigAction.sa_handler=Fastcgipp::Manager_base::signalHandler;
-	sigemptyset(&sigAction.sa_mask);
-	sigAction.sa_flags=0;
+    struct sigaction sigAction;
+    sigAction.sa_handler=Fastcgipp::Manager_base::signalHandler;
+    sigemptyset(&sigAction.sa_mask);
+    sigAction.sa_flags=0;
 
-	sigaction(SIGPIPE, &sigAction, NULL);
-	sigaction(SIGUSR1, &sigAction, NULL);
-	sigaction(SIGTERM, &sigAction, NULL);
+    sigaction(SIGPIPE, &sigAction, NULL);
+    sigaction(SIGUSR1, &sigAction, NULL);
+    sigaction(SIGTERM, &sigAction, NULL);
 }
 
 void Fastcgipp::Manager_base::signalHandler(int signum)
 {
-	switch(signum)
-	{
-		case SIGUSR1:
-		{
-			if(instance)
+    switch(signum)
+    {
+        case SIGUSR1:
+        {
+            if(instance)
             {
                 DIAG_LOG("Received SIGUSR1. Stopping fastcgi++ manager.")
                 instance->stop();
@@ -123,11 +123,11 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
             else
                 WARNING_LOG("Received SIGUSR1 but fastcgi++ manager isn't "\
                         "running")
-			break;
-		}
-		case SIGTERM:
-		{
-			if(instance)
+            break;
+        }
+        case SIGTERM:
+        {
+            if(instance)
             {
                 DIAG_LOG("Received SIGTERM. Terminating fastcgi++ manager.")
                 instance->stop();
@@ -135,9 +135,9 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
             else
                 WARNING_LOG("Received SIGTERM but fastcgi++ manager isn't "\
                         "running")
-			break;
-		}
-	}
+            break;
+        }
+    }
 }
 
 void Fastcgipp::Manager_base::localHandler()
@@ -151,13 +151,13 @@ void Fastcgipp::Manager_base::localHandler()
         m_messages.pop();
     }
 
-	if(message.type == 0)
-	{
-		const Protocol::Header& header=*(Protocol::Header*)message.data.data(); 
-		switch(header.type)
-		{
+    if(message.type == 0)
+    {
+        const Protocol::Header& header=*(Protocol::Header*)message.data.data();
+        switch(header.type)
+        {
             case Protocol::RecordType::GET_VALUES:
-			{
+            {
                 std::vector<char>::const_iterator name;
                 std::vector<char>::const_iterator value;
                 std::vector<char>::const_iterator end;
@@ -172,12 +172,12 @@ void Fastcgipp::Manager_base::localHandler()
                     switch(value-name)
                     {
                         case 14:
-                        {    
+                        {
                             if(std::equal(name, value, "FCGI_MAX_CONNS"))
                             {
                                 std::vector<char> record(
                                         sizeof(Protocol::maxConnsReply));
-                                const char* const start 
+                                const char* const start
                                     = (const char*)&Protocol::maxConnsReply;
                                 const char* end = start
                                     +sizeof(Protocol::maxConnsReply);
@@ -195,7 +195,7 @@ void Fastcgipp::Manager_base::localHandler()
                             {
                                 std::vector<char> record(
                                         sizeof(Protocol::maxReqsReply));
-                                const char* const start 
+                                const char* const start
                                     = (const char*)&Protocol::maxReqsReply;
                                 const char* end = start
                                     + sizeof(Protocol::maxReqsReply);
@@ -213,7 +213,7 @@ void Fastcgipp::Manager_base::localHandler()
                             {
                                 std::vector<char> record(
                                         sizeof(Protocol::mpxsConnsReply));
-                                const char* const start 
+                                const char* const start
                                     = (const char*)&Protocol::mpxsConnsReply;
                                 const char* end = start
                                     + sizeof(Protocol::mpxsConnsReply);
@@ -227,32 +227,32 @@ void Fastcgipp::Manager_base::localHandler()
                         }
                     }
                 }
-				break;
-			}
+                break;
+            }
 
-			default:
-			{
+            default:
+            {
                 std::vector<char> record(
                         sizeof(Protocol::Header)
                         +sizeof(Protocol::UnknownType));
 
                 Protocol::Header& sendHeader=*(Protocol::Header*)record.data();
-				sendHeader.version = Protocol::version;
-				sendHeader.type = Protocol::RecordType::UNKNOWN_TYPE;
-				sendHeader.fcgiId = 0;
-				sendHeader.contentLength = sizeof(Protocol::UnknownType);
-				sendHeader.paddingLength = 0;
+                sendHeader.version = Protocol::version;
+                sendHeader.type = Protocol::RecordType::UNKNOWN_TYPE;
+                sendHeader.fcgiId = 0;
+                sendHeader.contentLength = sizeof(Protocol::UnknownType);
+                sendHeader.paddingLength = 0;
 
                 Protocol::UnknownType& sendBody
                     = *(Protocol::UnknownType*)(record.data()+sizeof(header));
-				sendBody.type = header.type;
+                sendBody.type = header.type;
 
                 m_transceiver.send(socket, std::move(record), false);
 
-				break;
-			}
-		}
-	}
+                break;
+            }
+        }
+    }
     else
         ERROR_LOG("Got a non-FastCGI record destined for the manager")
 }

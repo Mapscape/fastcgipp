@@ -924,7 +924,7 @@ Fastcgipp::Http::operator<<(
                     if(subStart <= it && it <= subEnd)
                     {
                         if(
-                                it == subStart 
+                                it == subStart
                                 && it == (const uint16_t*)address.m_data.data())
                             *bufPtr++=os.widen(':');
                         if(it == subEnd)
