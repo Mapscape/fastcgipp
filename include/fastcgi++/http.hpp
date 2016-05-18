@@ -439,8 +439,8 @@ namespace Fastcgipp
 
         //! Decodes a url-encoded string into a multimap container
         /*!
-         * @param[in] start Data to decode
-         * @param[in] end +1 last byte to decode
+         * @param[in] data Data to decode
+         * @param[in] dataEnd +1 last byte to decode
          * @param[out] output Container to output data into
          * @param[in] fieldSeparator Character that signifies field separation
          */

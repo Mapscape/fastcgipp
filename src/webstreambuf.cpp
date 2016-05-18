@@ -1,5 +1,5 @@
 /*!
- * @file       fcgistream.cpp
+ * @file       webstreambuf.cpp
  * @brief      Defines the WebStreambuf stuff
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
  * @date       May 2, 2016

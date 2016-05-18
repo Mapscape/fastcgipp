@@ -1,5 +1,5 @@
 /*!
- * @file       transceiver.hpp
+ * @file       transceiver.cpp
  * @brief      Defines the Fastcgipp::Transceiver class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
  * @date       May 18, 2016
