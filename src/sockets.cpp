@@ -2,7 +2,7 @@
  * @file       sockets.cpp
  * @brief      Defines everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 16, 2016
+ * @date       May 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -80,14 +80,14 @@ ssize_t Fastcgipp::Socket::read(char* buffer, size_t size) const
     }
     if(count == 0 && m_data->m_closing)
     {
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
         ++m_data->m_group.m_connectionRDHupCount;
 #endif
         close();
         return -1;
     }
 
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
     m_data->m_group.m_bytesReceived += count;
 #endif
 
@@ -108,7 +108,7 @@ ssize_t Fastcgipp::Socket::write(const char* buffer, size_t size) const
         return -1;
     }
 
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
     m_data->m_group.m_bytesSent += count;
 #endif
 
@@ -124,7 +124,7 @@ void Fastcgipp::Socket::close() const
         m_data->m_valid = false;
         m_data->m_group.pollDel(m_data->m_socket);
         m_data->m_group.m_sockets.erase(m_data->m_socket);
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
         if(!m_data->m_closing)
             ++m_data->m_group.m_connectionKillCount;
 #endif
@@ -149,7 +149,7 @@ Fastcgipp::SocketGroup::SocketGroup():
     m_waking(false),
     m_accept(true),
     m_refreshListeners(false)
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
     ,m_incomingConnectionCount(0),
     m_outgoingConnectionCount(0),
     m_connectionKillCount(0),
@@ -161,7 +161,7 @@ Fastcgipp::SocketGroup::SocketGroup():
     // Add our wakeup socket into the poll list
     socketpair(AF_UNIX, SOCK_STREAM, 0, m_wakeSockets);
     pollAdd(m_wakeSockets[1]);
-    DEBUG_LOG("SocketGroup::SocketGroup(): Initialized ")
+    DIAG_LOG("SocketGroup::SocketGroup(): Initialized ")
 }
 
 Fastcgipp::SocketGroup::~SocketGroup()
@@ -176,18 +176,18 @@ Fastcgipp::SocketGroup::~SocketGroup()
         ::shutdown(listener, SHUT_RDWR);
         ::close(listener);
     }
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Incoming sockets ======== " \
+    DIAG_LOG("SocketGroup::~SocketGroup(): Incoming sockets ======== " \
             << m_incomingConnectionCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Outgoing sockets ======== " \
+    DIAG_LOG("SocketGroup::~SocketGroup(): Outgoing sockets ======== " \
             << m_outgoingConnectionCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Locally closed sockets == " \
+    DIAG_LOG("SocketGroup::~SocketGroup(): Locally closed sockets == " \
             << m_connectionKillCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Remotely closed sockets = " \
+    DIAG_LOG("SocketGroup::~SocketGroup(): Remotely closed sockets = " \
             << m_connectionRDHupCount)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Remaining sockets ======= " \
+    DIAG_LOG("SocketGroup::~SocketGroup(): Remaining sockets ======= " \
             << m_sockets.size())
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes sent ===== " << m_bytesSent)
-    DEBUG_LOG("SocketGroup::~SocketGroup(): Bytes received = " \
+    DIAG_LOG("SocketGroup::~SocketGroup(): Bytes sent ===== " << m_bytesSent)
+    DIAG_LOG("SocketGroup::~SocketGroup(): Bytes received = " \
             << m_bytesReceived)
 }
 
@@ -366,7 +366,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::connect(const char* name)
         return Socket();
     }
 
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
     ++m_outgoingConnectionCount;
 #endif
 
@@ -429,7 +429,7 @@ Fastcgipp::Socket Fastcgipp::SocketGroup::connect(
         return Socket();
     }
 
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
     ++m_outgoingConnectionCount;
 #endif
 
@@ -616,7 +616,7 @@ void Fastcgipp::SocketGroup::createSocket(const socket_t listener)
         m_sockets.emplace(
                 socket,
                 std::move(Socket(socket, *this)));
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
         ++m_incomingConnectionCount;
 #endif
     }

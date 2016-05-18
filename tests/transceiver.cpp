@@ -125,7 +125,10 @@ void client()
             // Yes will send data
 
             // Should we make a new connection or use an old one?
-            if(connections>=maxConnections || requestCount>=maxRequests || (!requests.empty() && boolDist(rd)))
+            if(
+                    connections>=maxConnections
+                    || requestCount>=maxRequests
+                    || (!requests.empty() && boolDist(rd)))
             {
                 // Let's use an old one
                 request = requests.begin();
@@ -268,7 +271,8 @@ RECEIVE:
                         for(auto it = range.first; it != range.second; ++it)
                             ++distance;
                         if(distance != 1)
-                            FAIL_LOG("Got a server side kill that affects multiple requests")
+                            FAIL_LOG("Got a server side kill that affects "\
+                                    "multiple requests")
                         requests.erase(range.first);
                         buffers.erase(socket);
                         continue;
@@ -304,7 +308,8 @@ RECEIVE:
                             header.fcgiId,
                             socket));
                 if(request == requests.end())
-                    FAIL_LOG("Got an echo " << header.fcgiId << " that isn't in our requests")
+                    FAIL_LOG("Got an echo " << header.fcgiId << " that isn't "\
+                            "in our requests")
                 if(request->second != buffer)
                     FAIL_LOG("Got an echo that doesn't match what we sent")
 
@@ -349,7 +354,8 @@ RECEIVE:
     }
 
     if(group.size())
-        FAIL_LOG("Main loop finished but there are still active sockets " << group.size())
+        FAIL_LOG("Main loop finished but there are still active sockets " \
+                << group.size())
     if(buffers.size())
         FAIL_LOG("Main loop finished but there are still buffers")
     if(requests.size())

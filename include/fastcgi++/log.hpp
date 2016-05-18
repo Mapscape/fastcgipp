@@ -2,7 +2,7 @@
  * @file       log.hpp
  * @brief      Declares the Fastcgipp debugging/logging facilities
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 15, 2016
+ * @date       May 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -64,7 +64,8 @@ namespace Fastcgipp
             FAIL = 1,
             ERROR = 2,
             WARNING = 3,
-            DEBUG = 4
+            DEBUG = 4,
+            DIAG = 5,
         };
 
         //! Send a log header to logstream
@@ -142,6 +143,19 @@ namespace Fastcgipp
     }}
 #else
 #define DEBUG_LOG(data)
+#endif
+
+#if FASTCGIPP_LOG_LEVEL > 3
+//! The intention here is for internal library debug/analysis logging
+#define DIAG_LOG(data) {\
+    if(!::Fastcgipp::Logging::suppress)\
+    { \
+        std::lock_guard<std::mutex> lock(::Fastcgipp::Logging::mutex);\
+        ::Fastcgipp::Logging::header(::Fastcgipp::Logging::DIAG);\
+        *::Fastcgipp::Logging::logstream << data << std::endl;\
+    }}
+#else
+#define DIAG_LOG(data)
 #endif
 
 #endif

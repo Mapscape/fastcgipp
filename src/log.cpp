@@ -2,7 +2,7 @@
  * @file       log.cpp
  * @brief      Defines the Fastcgipp debugging/logging facilities
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 15, 2016
+ * @date       May 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -86,13 +86,14 @@ namespace Fastcgipp
             return ss.str();
         }
 
-        std::array<std::wstring, 5> levels
+        std::array<std::wstring, 6> levels
         {
             L"[info]: ",
             L"[fail]: ",
             L"[error]: ",
             L"[warning]: ",
-            L"[debug]: "
+            L"[debug]: ",
+            L"[diagnostic]: "
         };
     }
 }

@@ -2,7 +2,7 @@
  * @file       sockets.hpp
  * @brief      Declares everything for interfaces with OS level sockets.
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       April 25, 2016
+ * @date       May 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  *
@@ -279,7 +279,7 @@ namespace Fastcgipp
      * <em>The only part of this class that is safe to call from multiple
      * threads is the wake() function.</em>
      *
-     * @date    April 22, 2016
+     * @date    May 18, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
      */
     class SocketGroup
@@ -450,7 +450,7 @@ namespace Fastcgipp
         //! Remove a socket identifier to the poll list
         bool pollDel(const socket_t socket);
 
-#if FASTCGIPP_LOG_LEVEL > 2
+#if FASTCGIPP_LOG_LEVEL > 3
         //! Debug counter for incoming connections
         std::atomic_ullong m_incomingConnectionCount;
 
