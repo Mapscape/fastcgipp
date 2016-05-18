@@ -199,6 +199,12 @@ bool Fastcgipp::SocketGroup::listen()
 
     if(m_listeners.find(listen) == m_listeners.end())
     {
+        if(::listen(listen, 100) < 0)
+        {
+            ERROR_LOG("Unable to listen on default FastCGI socket: "\
+                    << std::strerror(errno));
+            return false;
+        }
         m_listeners.insert(listen);
         m_refreshListeners = true;
         return true;
