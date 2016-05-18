@@ -2,7 +2,7 @@
  * @file       manager.hpp
  * @brief      Declares the Manager class
  * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
- * @date       May 14, 2016
+ * @date       May 18, 2016
  * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
  *             the GNU Lesser General Public License Version 3.
  */
@@ -57,7 +57,7 @@ namespace Fastcgipp
      *  - Call start()
      *  - Call stop() or terminate() when you are done.
      *
-     * @date    May 14, 2016
+     * @date    May 18, 2016
      * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
 	 */
 	class Manager_base
@@ -69,11 +69,7 @@ namespace Fastcgipp
          */
 		Manager_base(unsigned threads);
 
-		~Manager_base()
-        {
-            instance=nullptr;
-            terminate();
-        }
+		~Manager_base();
 
         //! Call from any thread to terminate the Manager
 		/*!
@@ -183,6 +179,7 @@ namespace Fastcgipp
 		//! Handles low level communication with the other side
 		Transceiver m_transceiver;
 
+        //! Pass a message to a request
         void push(Protocol::RequestId id, Message&& message);
 
 	private:
@@ -234,6 +231,32 @@ namespace Fastcgipp
 
 		//! Pointer to the %Manager object
 		static Manager_base* instance;
+
+#if FASTCGIPP_LOG_LEVEL > 3
+        //! Debug counter for new requests
+        std::atomic_ullong m_requestCount;
+
+        //! Debug counter for max requests
+        size_t m_maxRequests;
+
+        //! Debug counter for management records
+        std::atomic_ullong m_managementRecordCount;
+
+        //! Debug counter for bad socket messages
+        std::atomic_ullong m_badSocketMessageCount;
+
+        //! Debug counter for bad socket kills
+        std::atomic_ullong m_badSocketKillCount;
+
+        //! Debug counter for request messages received
+        std::atomic_ullong m_messageCount;
+
+        //! Debug counter currently active handler() threads
+        unsigned m_activeThreads;
+
+        //! Debug counter max active handler() threads
+        unsigned m_maxActiveThreads;
+#endif
 	};
 	
 	//! General task and protocol management class

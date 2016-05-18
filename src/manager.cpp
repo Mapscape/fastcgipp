@@ -40,10 +40,21 @@ Fastcgipp::Manager_base::Manager_base(unsigned threads):
     m_terminate(true),
     m_stop(true),
     m_threads(threads)
+#if FASTCGIPP_LOG_LEVEL > 3
+    ,m_requestCount(0),
+    m_maxRequests(0),
+    m_managementRecordCount(0),
+    m_badSocketMessageCount(0),
+    m_badSocketKillCount(0),
+    m_messageCount(0),
+    m_activeThreads(threads),
+    m_maxActiveThreads(0)
+#endif
 {
     if(instance != nullptr)
         FAIL_LOG("You're not allowed to have multiple manager instances")
     instance = this;
+    DIAG_LOG("Manager_base::Manager_base(): Initialized")
 }
 
 void Fastcgipp::Manager_base::terminate()
@@ -65,7 +76,7 @@ void Fastcgipp::Manager_base::stop()
 void Fastcgipp::Manager_base::start()
 {
     std::lock_guard<std::mutex> lock(m_tasksMutex);
-    DEBUG_LOG("Starting fastcgi++ manager")
+    DIAG_LOG("Starting fastcgi++ manager")
     m_stop=false;
     m_terminate=false;
     m_transceiver.start();
@@ -106,7 +117,7 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
 		{
 			if(instance)
             {
-                DEBUG_LOG("Received SIGUSR1. Stopping fastcgi++ manager.")
+                DIAG_LOG("Received SIGUSR1. Stopping fastcgi++ manager.")
                 instance->stop();
             }
             else
@@ -118,7 +129,7 @@ void Fastcgipp::Manager_base::signalHandler(int signum)
 		{
 			if(instance)
             {
-                DEBUG_LOG("Received SIGTERM. Terminating fastcgi++ manager.")
+                DIAG_LOG("Received SIGTERM. Terminating fastcgi++ manager.")
                 instance->stop();
             }
             else
@@ -281,6 +292,10 @@ void Fastcgipp::Manager_base::handler()
                         auto lock = request->second->handler();
                         if(!lock || !id.m_socket.valid())
                         {
+#if FASTCGIPP_LOG_LEVEL > 3
+                            if(!id.m_socket.valid())
+                                ++m_badSocketKillCount;
+#endif
                             if(lock)
                                 lock.unlock();
                             requestsWriteLock.lock();
@@ -305,7 +320,17 @@ void Fastcgipp::Manager_base::handler()
         if(m_terminate || (m_stop && m_requests.empty()))
             break;
         requestsReadLock.unlock();
+#if FASTCGIPP_LOG_LEVEL > 3
+        --m_activeThreads;
+#endif
         m_wake.wait(tasksLock);
+#if FASTCGIPP_LOG_LEVEL > 3
+        if(!m_stop && !m_terminate)
+        {
+            ++m_activeThreads;
+            m_maxActiveThreads = std::max(m_activeThreads, m_maxActiveThreads);
+        }
+#endif
         requestsReadLock.lock();
     }
 }
@@ -314,11 +339,17 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
 {
     if(id.m_id == 0)
     {
+#if FASTCGIPP_LOG_LEVEL > 3
+        ++m_managementRecordCount;
+#endif
         std::lock_guard<std::mutex> lock(m_messagesMutex);
         m_messages.push(std::make_pair(std::move(message), id.m_socket));
     }
     else if(id.m_id == Protocol::badFcgiId)
     {
+#if FASTCGIPP_LOG_LEVEL > 3
+        ++m_badSocketMessageCount;
+#endif
         std::lock_guard<std::shared_timed_mutex> lock(m_requestsMutex);
         const auto range = m_requests.equal_range(id.m_socket);
         auto request = range.first;
@@ -331,6 +362,9 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
             {
                 lock.unlock();
                 request = m_requests.erase(request);
+#if FASTCGIPP_LOG_LEVEL > 3
+                ++m_badSocketKillCount;
+#endif
             }
             else
                 ++request;
@@ -339,6 +373,9 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
     }
     else
     {
+#if FASTCGIPP_LOG_LEVEL > 3
+        ++m_messageCount;
+#endif
         std::unique_lock<std::shared_timed_mutex> lock(m_requestsMutex);
         auto request = m_requests.find(id);
         if(request == m_requests.end())
@@ -362,6 +399,10 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
                         body.role,
                         body.kill());
                 lock.unlock();
+#if FASTCGIPP_LOG_LEVEL > 3
+                ++m_requestCount;
+                m_maxRequests = std::max(m_maxRequests, m_requests.size());
+#endif
             }
             else
                 WARNING_LOG("Got a non BEGIN_REQUEST record for a request that"\
@@ -374,4 +415,30 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
     std::lock_guard<std::mutex> lock(m_tasksMutex);
     m_tasks.push(id);
     m_wake.notify_one();
+}
+
+Fastcgipp::Manager_base::~Manager_base()
+{
+    instance=nullptr;
+    terminate();
+    DIAG_LOG("Manager_base::~Manager_base(): New requests ============== " \
+            << m_requestCount)
+    DIAG_LOG("Manager_base::~Manager_base(): Max concurrent requests === " \
+            << m_maxRequests)
+    DIAG_LOG("Manager_base::~Manager_base(): Management records ======== " \
+            << m_managementRecordCount)
+    DIAG_LOG("Manager_base::~Manager_base(): Bad socket messages ======= " \
+            << m_badSocketMessageCount)
+    DIAG_LOG("Manager_base::~Manager_base(): Bad socket request kills == " \
+            << m_badSocketKillCount)
+    DIAG_LOG("Manager_base::~Manager_base(): Request messages received = " \
+            << m_messageCount)
+    DIAG_LOG("Manager_base::~Manager_base(): Maximum active threads ==== " \
+            << m_maxActiveThreads)
+    DIAG_LOG("Manager_base::~Manager_base(): Remaining requests ======== " \
+            << m_requests.size())
+    DIAG_LOG("Manager_base::~Manager_base(): Remaining tasks =========== " \
+            << m_tasks.size())
+    DIAG_LOG("Manager_base::~Manager_base(): Remaining local messages == " \
+            << m_messages.size())
 }
