@@ -1,324 +1,309 @@
-//! \file request.hpp Defines the Fastcgipp::Request class
-/***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
-* under the terms of the GNU Lesser General Public License as  published   *
-* by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
-* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
-* You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
-****************************************************************************/
+/*!
+ * @file       request.hpp
+ * @brief      Declares the Request class
+ * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
+ * @date       May 15, 2016
+ * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
+ *             the GNU Lesser General Public License Version 3.
+ */
 
+/*******************************************************************************
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                             *
+*                                                                              *
+* This file is part of fastcgi++.                                              *
+*                                                                              *
+* fastcgi++ is free software: you can redistribute it and/or modify it under   *
+* the terms of the GNU Lesser General Public License as  published by the Free *
+* Software Foundation, either version 3 of the License, or (at your option)    *
+* any later version.                                                           *
+*                                                                              *
+* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT ANY *
+* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    *
+* FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for     *
+* more details.                                                                *
+*                                                                              *
+* You should have received a copy of the GNU Lesser General Public License     *
+* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
+*******************************************************************************/
 
-#ifndef REQUEST_HPP
-#define REQUEST_HPP
+#ifndef FASTCGIPP_REQUEST_HPP
+#define FASTCGIPP_REQUEST_HPP
 
+#include "fastcgi++/protocol.hpp"
+#include "fastcgi++/fcgistreambuf.hpp"
+#include "fastcgi++/http.hpp"
+
+#include <ostream>
+#include <functional>
 #include <queue>
-#include <map>
-#include <string>
-#include <locale>
-
-#include <boost/shared_array.hpp>
-#include <boost/thread.hpp>
-#include <boost/function.hpp>
-
-#include <fastcgi++/transceiver.hpp>
-#include <fastcgi++/protocol.hpp>
-#include <fastcgi++/exceptions.hpp>
-#include <fastcgi++/fcgistream.hpp>
-#include <fastcgi++/http.hpp>
+#include <mutex>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
-	template<class T> class Manager;
+    //! De-templating base class for Request
+    class Request_base
+    {
+    public:
+        //! Request Handler
+        /*!
+         * This function is called by Manager::handler() to handle messages
+         * destined for the request.  It deals with FastCGI messages (type=0)
+         * while passing all other messages off to response().
+         *
+         * @return A lock locking the requests message queue. If the request
+         *         completes this will be unlocked. If the request isn't
+         *         complete it will be locked. If locked, makes sure to unlock
+         *         it \e after unlocking Request::mutex.
+         * @sa callback
+         */
+        virtual std::unique_lock<std::mutex> handler() =0;
 
-	//! %Request handling class
-	/*!
-	 * Derivations of this class will handle requests. This
-	 * includes building the environment data, processing post/get data,
-	 * fetching data (files, database), and producing a response.
-	 * Once all client data is organized, response() will be called.
-	 * At minimum, derivations of this class must define response().
-	 *
-	 * If you want to use UTF-8 encoding pass wchar_t as the template
-	 * argument, use setloc() to setup a UTF-8 locale and use wide
-	 * character unicode internally for everything. If you want to use
-	 * a 8bit character set encoding pass char as the template argument and
-	 * setloc() a locale with the corresponding character set.
-	 *
-	 * \tparam charT Character type for internal processing (wchar_t or char)
-	 */
-	template<class charT> class Request
-	{
-	public:
-		//! Initializes what it can. set() must be called by Manager before the data is usable.
-		/*!
-		 * \param maxPostSize This would be the maximum size you want to allow for
-		 * post data. Any data beyond this size would result in a call to
-		 * bigPostErrorHandler(). A value of 0 represents unlimited.
-		 */
-		Request(const size_t maxPostSize=0): m_maxPostSize(maxPostSize), state(Protocol::PARAMS)  {
-			setloc(std::locale::classic());
-			out.exceptions(std::ios_base::badbit | std::ios_base::failbit | std::ios_base::eofbit);
-			m_environment.clearPostBuffer();
-                }
+        virtual ~Request_base() {}
 
-		virtual ~Request()
-		{
-			removeTasksCallback();
-		}
+        //! Only one thread is allowed to handle the request at a time
+        std::mutex mutex;
 
-		//! Accessor for  the data structure containing all HTTP environment data
-		const Http::Environment<charT>& environment() const { return m_environment; }
+        //! Send a message to the request
+        inline void push(Message&& message)
+        {
+            std::lock_guard<std::mutex> lock(m_messagesMutex);
+            m_messages.push(std::move(message));
+        }
 
-		// To dump data into the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump(char* data, size_t size)
-		// or Fcgistream::dump(std::basic_istream<char>& stream)
+    protected:
+        //! A queue of message for the request
+        std::queue<Message> m_messages;
 
-		//! Standard output stream to the client
-		/*!
-		 * To dump data directly through the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump()
-		 */
-		Fcgistream<charT> out;
+        //! Thread safe our message queue
+        std::mutex m_messagesMutex;
+    };
 
-		//! Output stream to the HTTP server error log
-		/*!
-		 * To dump data directly through the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump()
-		 */
-		Fcgistream<charT> err;
+    //! %Request handling class
+    /*!
+     * Derivations of this class will handle requests. This includes building
+     * the environment data, processing post/get data, fetching data (files,
+     * database), and producing a response.  Once all client data is organized,
+     * response() will be called.  At minimum, derivations of this class must
+     * define response().
+     *
+     * If you want to use utf8 encoding pass wchar_t as the template argument
+     * and use wide character unicode internally for everything. If you want to
+     * use a 8bit character set pass char as the template argument and use char
+     * for everything internally.
+     *
+     * @tparam charT Character type for internal processing (wchar_t or char)
+     *
+     * @date    May 15, 2016
+     * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
+     */
+    template<class charT> class Request: public Request_base
+    {
+    public:
+        //! Initializes what it can. configure() to finish.
+        /*!
+         * @param maxPostSize This would be the maximum size you want to allow
+         *                    for post data. Any data beyond this size would
+         *                    result in a call to bigPostErrorHandler(). A
+         *                    value of 0 represents unlimited.
+         */
+        Request(const size_t maxPostSize=0):
+            out(&m_outStreamBuffer),
+            err(&m_errStreamBuffer),
+            m_maxPostSize(maxPostSize),
+            m_state(Protocol::RecordType::PARAMS),
+            m_status(Protocol::ProtocolStatus::REQUEST_COMPLETE)
+        {}
 
-		//! Called when an exception is caught.
-		/*!
-		 * This function is called whenever an exception is caught inside the request. By default it will output some data
-		 * to the error log and send a standard 500 Internal Server Error message to the user. Override for more specialized
-		 * purposes.
-		 *
-		 * @param[in] error Exception caught
-		 */
-		virtual void errorHandler(const std::exception& error);
+        //! Configures the request with the data it needs.
+        /*!
+         * This function is an "after-the-fact" constructor that build vital
+         * initial data for the request.
+         *
+         * @param[in] id Complete ID of the request
+         * @param[in] role The role that the other side expects this request to4
+         *                 play
+         * @param[in] kill Boolean value indicating whether or not the socket
+         *                 should be closed upon completion
+         * @param[in] send Function for sending data out of the stream buffers
+         * @param[in] callback Callback function capable of passing messages to
+         *                     the request
+         */
+        void configure(
+                const Protocol::RequestId& id,
+                const Protocol::Role& role,
+                bool kill,
+                const std::function<void(const Socket&, std::vector<char>&&, bool)>
+                    send,
+                const std::function<void(Message)> callback);
 
-		//! Called when too much post data is recieved.
-		virtual void bigPostErrorHandler();
+        std::unique_lock<std::mutex> handler();
 
-		//! See the requests role
-		Protocol::Role role() const { return m_role; }
+        virtual ~Request() {}
 
-		//! Accessor for the callback function for dealings outside the fastcgi++ library
-		/*!
-		 * The purpose of the callback object is to provide a thread safe mechanism for functions and
-		 * classes outside the fastcgi++ library to talk to the requests. Should the library
-		 * wish to have another thread process or fetch some data, that thread can call this
-		 * function when it is finished. It is equivalent to this:
-		 *
-		 * void callback(Message msg);
-		 *
-		 *	The sole parameter is a Message that contains both a type value for processing by response()
-		 *	and the raw castable data.
-		 */
-		const boost::function<void(Message)>& callback() const { return m_callback; }
+    protected:
+        //! Accessor for the HTTP environment data
+        const Http::Environment<charT>& environment() const
+        {
+            return m_environment;
+        }
 
-		//! Accessor for the undo callback function for dealings outside the fastcgi++ library
-		/*!
-		 * This function should be called to undo any callback in case an exception occurs.
-		 */
-		const void removeTasksCallback() const { m_removeTasksCallback(); }
+        //! Standard output stream to the client
+        std::basic_ostream<charT> out;
 
-		//! Set the requests locale
-		/*!
-		 * This function both sets loc to the locale passed to it and imbues the locale into the
-		 * out and err stream. The user should always call this function as opposed to setting the
-		 * locales directly is this functions insures the utf8 code conversion is functioning properly.
-		 *
-		 * @param[in] loc_ New locale
-		 * @sa loc
-		 * @sa out
-		 */
-		void setloc(std::locale loc_){ out.imbue(loc_); err.imbue(loc_); }
+        //! Output stream to the HTTP server error log
+        std::basic_ostream<charT> err;
 
-		//! Retrieves the requests locale
-		/*!
-		 * \return Constant reference to the requests locale
-		 */
-		const std::locale& getloc(){ return loc; }
+        //! Called when a processing error occurs
+        /*!
+         * This function is called whenever a processing error happens inside
+         * the request. By default it will send a standard 500 Internal Server
+         * Error message to the user.  Override for more specialized purposes.
+         */
+        virtual void errorHandler();
 
-	protected:
-		//! Response generator
-		/*!
-		 * This function is called by handler() once all request data has been received from the other side or if a
-		 * Message not of a FastCGI type has been passed to it. The function shall return true if it has completed
-		 * the response and false if it has not (waiting for a callback message to be sent).
-		 *
-		 * @return Boolean value indication completion (true means complete)
-		 * @sa callback
-		 */
-		virtual bool response() =0;
+        //! Called when too much post data is recieved.
+        /*!
+         * This function is called when the client sends too much data the
+         * request. By default it will send a standard 413 Request Entity Too
+         * Large Error message to the user.  Override for more specialized
+         * purposes.
+         */
+        virtual void bigPostErrorHandler();
 
-		//! Generate a data input response
-		/*!
-		 * This function exists should the library user wish to do something like generate a partial response based on
-		 * bytes received from the client. The function is called by handler() every time a FastCGI IN record is received.
-		 * The function has no access to the data, but knows exactly how much was received based on the value that was passed.
-		 * Note this value represents the amount of data received in the individual record, not the total amount received in
-		 * the environment. If the library user wishes to have such a value they would have to keep a tally of all size values
-		 * passed.
-		 *
-		 * @param[in] bytesReceived Amount of bytes received in this FastCGI record
-		 */
-		virtual void inHandler(int bytesReceived) { };
+        //! See the requests role
+        Protocol::Role role() const
+        {
+            return m_role;
+        }
 
-		//! Process custom POST data
-		/*!
-		 * Override this function should you wish to process non-standard post
-		 * data. The library will on it's own process post data of the types
-		 * "multipart/form-data" and "application/x-www-form-urlencoded". To use
-		 * this function, your raw post data is fully assembled in
-		 * environment().postBuffer(), the size is in environment().contentLength,
-		 * and the type string is stored in environment().contentType. Should the
-		 * content type be what you're looking for and you've processed it, simply
-		 * return true. Otherwise return false.  Do not worry about freeing the
-		 * data in the post buffer. Should you return false, the system will try
-		 * to internally process it.
-		 *
-		 * @return Return true if you've processed the data.
-		 */
-		bool virtual inProcessor() { return false; }
+        //! Callback function for dealings outside the fastcgi++ library
+        /*!
+         * The purpose of the callback function is to provide a thread safe
+         * mechanism for functions and classes outside the fastcgi++ library to
+         * talk to the requests. Should the library wish to have another thread
+         * process or fetch some data, that thread can call this function when
+         * it is finished. It is equivalent to this:
+         *
+         * void callback(Message msg);
+         *
+         * The sole parameter is a Message that contains both a type value for
+         * processing by response() and a vector for some data.
+         */
+        const std::function<void(Message)>& callback() const
+        {
+            return m_callback;
+        }
 
-		//! The message associated with the current handler() call.
-		/*!
-		 * This is only of use to the library user when a non FastCGI (type=0) Message is passed
-		 * by using the requests callback.
-		 *
-		 * @sa callback
-		 */
-		const Message& message() const { return m_message; }
+        //! Response generator
+        /*!
+         * This function is called by handler() once all request data has been
+         * received from the other side or if a Message not of a FastCGI type
+         * has been passed to it. The function shall return true if it has
+         * completed the response and false if it has not (waiting for a
+         * callback message to be sent).
+         *
+         * @return Boolean value indication completion (true means complete)
+         * @sa callback
+         */
+        virtual bool response() =0;
 
-	private:
-		template<class T> friend class Manager;
+        //! Generate a data input response
+        /*!
+         * This function exists should the library user wish to do something
+         * like generate a partial response based on bytes received from the
+         * client. The function is called by handler() every time a FastCGI IN
+         * record is received.  The function has no access to the data, but
+         * knows exactly how much was received based on the value that was
+         * passed. Note this value represents the amount of data received in
+         * the individual record, not the total amount received in the
+         * environment. If the library user wishes to have such a value they
+         * would have to keep a tally of all size values passed.
+         *
+         * @param[in] bytesReceived Amount of bytes received in this FastCGI
+         *                          record
+         */
+        virtual void inHandler(int bytesReceived)
+        {}
 
-		//! The locale associated with the request. Should be set with setloc(), not directly.
-		std::locale loc;
+        //! Process custom POST data
+        /*!
+         * Override this function should you wish to process non-standard post
+         * data. The library will on it's own process post data of the types
+         * "multipart/form-data" and "application/x-www-form-urlencoded". To
+         * use this function, your raw post data is fully assembled in
+         * environment().postBuffer() and the type string is stored in
+         * environment().contentType. Should the content type be what you're
+         * looking for and you've processed it, simply return true. Otherwise
+         * return false.  Do not worry about freeing the data in the post
+         * buffer. Should you return false, the system will try to internally
+         * process it.
+         *
+         * @return Return true if you've processed the data.
+         */
+        bool virtual inProcessor()
+        {
+            return false;
+        }
 
-		//! The message associated with the current handler() call.
-		/*!
-		 * This is only of use to the library user when a non FastCGI (type=0) Message is passed
-		 * by using the requests callback.
-		 *
-		 * @sa callback
-		 */
-		Message m_message;
+        //! The message associated with the current handler() call.
+        /*!
+         * This is only of use to the library user when a non FastCGI (type=0)
+         * Message is passed by using the requests callback.
+         *
+         * @sa callback
+         */
+        Message m_message;
 
-		//! The callback function for dealings outside the fastcgi++ library
-		/*!
-		 * The purpose of the callback object is to provide a thread safe mechanism for functions and
-		 * classes outside the fastcgi++ library to talk to the requests. Should the library
-		 * wish to have another thread process or fetch some data, that thread can call this
-		 * function when it is finished. It is equivalent to this:
-		 *
-		 * void callback(Message msg);
-		 *
-		 *	The sole parameter is a Message that contains both a type value for processing by response()
-		 *	and the raw castable data.
-		 */
-		boost::function<void(Message)> m_callback;
+    private:
+        //! The callback function for dealings outside the fastcgi++ library
+        /*!
+         * The purpose of the callback object is to provide a thread safe
+         * mechanism for functions and classes outside the fastcgi++ library to
+         * talk to the requests. Should the library wish to have another thread
+         * process or fetch some data, that thread can call this function when
+         * it is finished. It is equivalent to this:
+         *
+         * void callback(Message msg);
+         *
+         * The sole parameter is a Message that contains both a type value for
+         * processing by response() and the raw castable data.
+         */
+        std::function<void(Message)> m_callback;
 
-		//! Undo callback function for dealings outside the fastcgi++ library
-		boost::function<void()> m_removeTasksCallback;
+        //! The data structure containing all HTTP environment data
+        Http::Environment<charT> m_environment;
 
-		//! The data structure containing all HTTP environment data
-		Http::Environment<charT> m_environment;
+        //! The maximum amount of post data that can be recieved
+        const size_t m_maxPostSize;
 
-		//! Queue type for pending messages
-		/*!
-		 * This is merely a derivation of a std::queue<Message> and a
-		 * boost::mutex that gives data locking abilities to the STL container.
-		 */
-		class Messages: public std::queue<Message>, public boost::mutex {};
-		//! A queue of messages to be handler by the request
-		Messages messages;
+        //! The role that the other side expects this request to play
+        Protocol::Role m_role;
 
-		//! The maximum amount of post data that can be recieved
-		const size_t m_maxPostSize;
+        //! The complete ID (request id & file descriptor) associated with the request
+        Protocol::RequestId m_id;
 
-		//! Request Handler
-		/*!
-		 * This function is called by Manager::handler() to handle messages destined for the request.
-		 * It deals with FastCGI messages (type=0) while passing all other messages off to response().
-		 *
-		 * @return Boolean value indicating completion (true means complete)
-		 * @sa callback
-		 */
-		bool handler();
-		//! Pointer to the transceiver object that will send data to the other side
-		Transceiver* transceiver;
-		//! The role that the other side expects this request to play
-		Protocol::Role m_role;
-		//! The complete ID (request id & file descriptor) associated with the request
-		Protocol::FullId id;
-		//! Boolean value indicating whether or not the file descriptor should be closed upon completion.
-		bool killCon;
-		//! What the request is current doing
-		Protocol::RecordType state;
-		//! Generates an END_REQUEST FastCGI record
-		void complete();
-		//! Set's up the request with the data it needs.
-		/*!
-		 * This function is an "after-the-fact" constructor that build vital initial data for the request.
-		 *
-		 * @param[in] id_ Complete ID of the request
-		 * @param[in] transceiver_ Transceiver object the request will use
-		 * @param[in] role_ The role that the other side expects this request to play
-		 * @param[in] killCon_ Boolean value indicating whether or not the file descriptor should be closed upon completion
-		 * @param[in] callback_ Callback function capable of passing messages to the request
-		 */
-		void set(
-			Protocol::FullId id_,
-			Transceiver& transceiver_,
-			Protocol::Role role_,
-			bool killCon_,
-			boost::function<void(Message)> callback_,
-			boost::function<void()> removeTasksCallback_
-		)
-		{
-			killCon=killCon_;
-			id=id_;
-			transceiver=&transceiver_;
-			m_role=role_;
-			m_callback=callback_;
-			m_removeTasksCallback=removeTasksCallback_;
+        //! Should the socket be closed upon completion.
+        bool m_kill;
 
-			err.set(id_, transceiver_, Protocol::ERR);
-			out.set(id_, transceiver_, Protocol::OUT);
-		}
-	};
+        //! What the request is current doing
+        Protocol::RecordType m_state;
 
-	//! Includes all exceptions used by the fastcgi++ library
-	namespace Exceptions
-	{
-		/**
-		 * @brief Thrown if FastCGI records are received out of order.
-		 */
-		struct RecordsOutOfOrder: public std::exception
-		{
-			const char* what() const throw() { return "FastCGI records received out of order from server."; }
-		};
+        //! Generates an END_REQUEST FastCGI record
+        void complete();
 
-		/**
-		 * @brief Thrown if a incoming content type is unknown
-		 */
-		struct UnknownContentType: public std::exception
-		{
-			const char* what() const throw() { return "Client sent unknown content type."; }
-		};
-	}
+        //! Function to actually send the record
+        std::function<void(const Socket&, std::vector<char>&&, bool kill)> m_send;
+
+        //! Status to end the request with
+        Protocol::ProtocolStatus m_status;
+
+        //! Stream buffer for the out stream
+        FcgiStreambuf<charT> m_outStreamBuffer;
+
+        //! Stream buffer for the err stream
+        FcgiStreambuf<charT> m_errStreamBuffer;
+    };
 }
 
 #endif

@@ -1,377 +1,250 @@
-//! \file transceiver.hpp Defines the Fastcgipp::Transceiver class
-/***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
-* under the terms of the GNU Lesser General Public License as  published   *
-* by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
-* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
-* You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
-****************************************************************************/
+/*!
+ * @file       transceiver.hpp
+ * @brief      Declares the Fastcgipp::Transceiver class
+ * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
+ * @date       May 18, 2016
+ * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
+ *             the GNU Lesser General Public License Version 3.
+ */
 
+/*******************************************************************************
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                             *
+*                                                                              *
+* This file is part of fastcgi++.                                              *
+*                                                                              *
+* fastcgi++ is free software: you can redistribute it and/or modify it under   *
+* the terms of the GNU Lesser General Public License as  published by the Free *
+* Software Foundation, either version 3 of the License, or (at your option)    *
+* any later version.                                                           *
+*                                                                              *
+* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT ANY *
+* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    *
+* FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for     *
+* more details.                                                                *
+*                                                                              *
+* You should have received a copy of the GNU Lesser General Public License     *
+* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
+*******************************************************************************/
 
-#ifndef TRANSCEIVER_HPP
-#define TRANSCEIVER_HPP
+#ifndef FASTCGIPP_TRANSCEIVER_HPP
+#define FASTCGIPP_TRANSCEIVER_HPP
 
 #include <map>
 #include <list>
 #include <queue>
 #include <algorithm>
 #include <map>
-#include <vector>
 #include <functional>
-
-#include <boost/function.hpp>
-#include <boost/bind.hpp>
-#include <boost/shared_array.hpp>
-#include <boost/optional.hpp>
-
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <poll.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <signal.h>
+#include <memory>
+#include <atomic>
+#include <mutex>
+#include <thread>
 
 #include <fastcgi++/protocol.hpp>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
 {
-        namespace Exceptions
+    //! Handles low level communication with "the other side"
+    /*!
+     * This class handles the sending/receiving/buffering of data through the OS
+     * level sockets and also the creation/destruction of the sockets
+     * themselves.
+     *
+     * @date    May 18, 2016
+     * @author  Eddie Carle &lt;eddie@isatec.ca&gt;
+     */
+    class Transceiver
+    {
+    public:
+        //! General transceiver handler
+        /*!
+         * This function is called by Manager::handler() to both transmit data
+         * passed to it from requests and relay received data back to them as a
+         * Message. The function will return true if there is nothing at all for
+         * it to do.
+         */
+        void handler();
+
+        //! Call from any thread to stop the handler() thread
+        /*!
+         * Calling this thread will signal the handler() thread to cleanly stop
+         * itself. This means it keeps going until all connections are closed.
+         * No new connections are accepted.
+         *
+         * @sa join()
+         */
+        void stop();
+
+        //! Call from any thread to terminate the handler() thread
+        /*!
+         * Calling this thread will signal the handler() thread to immediately
+         * terminate itself. This means it doesn't wait until all connections
+         * are closed.
+         *
+         * @sa join()
+         */
+        void terminate();
+
+        //! Call from any thread to start the handler() thread
+        /*!
+         * If the thread is already running this will do nothing.
+         */
+        void start();
+
+        //! Block until a stop() or terminate() is called and completed
+        void join();
+
+        //! Queue up a block of data for transmission
+        /*!
+         * @param[in] socket Socket to write the data out
+         * @param[in] data Block of data to send out
+         * @param[in] kill True if the socket should be closed once everything
+         *                 is sent.
+         */
+        void send(const Socket& socket, std::vector<char>&& data, bool kill);
+
+        //! Constructor
+        /*!
+         * Construct a transceiver object based on an initial file descriptor to
+         * listen on and a function to pass messages on to.
+         *
+         * @param[in] sendMessage Function to call to pass messages to requests
+         */
+        Transceiver(
+                const std::function<void(Protocol::RequestId, Message&&)>
+                sendMessage);
+
+        ~Transceiver();
+
+        //! Listen to the default Fastcgi socket
+        /*!
+         * Calling this simply adds the default socket used on FastCGI
+         * applications that are initialized from HTTP servers.
+         *
+         * @return True on success. False on failure.
+         */
+        bool listen()
         {
-                //! General exception for socket related errors
-                struct Socket: public CodedException
-                {
-                        //! Sole Constructor
-                        /*!
-                         * @param[in] fd_ File descriptor of socket
-                         * @param[in] erno_ Associated errno
-                         */
-                        Socket(const int& fd_, const int& erno_): CodedException(0, erno_), fd(fd_) { }
-                        //! File descriptor of socket
-                        const int fd;
-                };
-
-                //! %Exception for write errors to sockets
-                struct SocketWrite: public Socket
-                {
-                        //! Sole Constructor
-                        /*!
-                         * @param[in] fd_ File descriptor of socket
-                         * @param[in] erno_ Associated errno
-                         */
-                        SocketWrite(int fd_, int erno_);
-                };
-
-                //! %Exception for read errors to sockets
-                struct SocketRead: public Socket
-                {
-                        //! Sole Constructor
-                        /*!
-                         * @param[in] fd_ File descriptor of socket
-                         * @param[in] erno_ Associated errno
-                         */
-                        SocketRead(int fd_, int erno_);
-                };
-
-                //! %Exception for poll() errors
-                struct SocketPoll: public CodedException
-                {
-                        //! Sole Constructor
-                        /*!
-                         * @param[in] erno_ Associated errno
-                         */
-                        SocketPoll(int erno_);
-                };
+            return m_sockets.listen();
         }
 
-	//! A raw block of memory
-	/*!
-	 * The purpose of this structure is to communicate a block of data to be written to
-	 * a Transceiver::Buffer
-	 */
-	struct Block
-	{
-		//! Construct from a pointer and size
-		/*!
-		 * @param[in] data_ Pointer to start of memory location
-		 * @param[in] size_ Size in bytes of memory location
-		 */
-		Block(char* data_, size_t size_): data(data_), size(size_) { }
-		//! Copies pointer and size, not data
-		Block(const Block& block): data(block.data), size(block.size) { }
-		//! Copies pointer and size, not data
-		const Block& operator=(const Block& block) { data=block.data; size=block.size; return *this; }
-		//! Pointer to start of memory location
-		char* data;
-		//! Size in bytes of memory location
-		size_t size;
-	};
+        //! Listen to a named socket
+        /*!
+         * Listen on a named socket. In the Unix world this would be a path. In
+         * the Windows world I have no idea what this would be.
+         *
+         * @param [in] name Name of socket (path in Unix world).
+         * @param [in] permissions Permissions of socket. If you do not wish to
+         *                         set the permissions, leave it as it's default
+         *                         value of 0xffffffffUL.
+         * @param [in] owner Owner (username) of socket. Leave as nullptr if you
+         *                   do not wish to set it.
+         * @param [in] group Group (group name) of socket. Leave as nullptr if
+         *                   you do not wish to set it.
+         * @return True on success. False on failure.
+         */
+        bool listen(
+                const char* name,
+                uint32_t permissions = 0xffffffffUL,
+                const char* owner = nullptr,
+                const char* group = nullptr)
+        {
+            return m_sockets.listen(name, permissions, owner, group);
+        }
 
-	//! Handles low level communication with "the other side"
-	/*!
-	 * This class handles the sending/receiving/buffering of data through the OS level sockets and also
-	 * the creation/destruction of the sockets themselves.
-	 */
-	class Transceiver
-	{
-	public:
-		//! General transceiver handler
-		/*!
-		 * This function is called by Manager::handler() to both transmit data passed to it from
-		 * requests and relay received data back to them as a Message. The function will return true
-		 * if there is nothing at all for it to do.
-		 *
-		 * @return Boolean value indicating whether there is data to be transmitted or received
-		 */
-		bool handler();
+        //! Listen to a TCP port
+        /*!
+         * Listen on a specific interface and TCP port.
+         *
+         * @param [in] interface Interface to listen on. This could be an IP
+         *                       address or a hostname. If you don't want to
+         *                       specify the interface, pass nullptr.
+         * @param [in] service Port or service to listen on. This could be a
+         *                     service name, or a string representation of a
+         *                     port number.
+         * @return True on success. False on failure.
+         */
+        bool listen(
+                const char* interface,
+                const char* service)
+        {
+            return m_sockets.listen(interface, service);
+        }
 
-		//! Direct interface to Buffer::requestWrite()
-		Block requestWrite(size_t size) { return buffer.requestWrite(size); }
-		//! Direct interface to Buffer::secureWrite()
-		void secureWrite(size_t size, Protocol::FullId id, bool kill)	{ buffer.secureWrite(size, id, kill); transmit(); }
-		//! Constructor
-		/*!
-		 * Construct a transceiver object based on an initial file descriptor to listen on and
-		 * a function to pass messages on to.
-		 *
-		 * @param[in] fd_ File descriptor to listen for connections on
-		 * @param[in] sendMessage_ Function to call to pass messages to requests
-		 */
-		Transceiver(int fd_, boost::function<void(Protocol::FullId, Message)> sendMessage_);
-		//! Blocks until there is data to receive or a call to wake() is made
-		void sleep()
-		{
-			poll(&pollFds.front(), pollFds.size(), -1);
-		}
+    private:
+        //! Container associating sockets with their receive buffers
+        std::map<Socket, std::vector<char>> m_receiveBuffers;
 
-		//! Forces a wakeup from a call to sleep()
-		void wake();
+        //! Simple FastCGI record to queue up for transmission
+        struct Record
+        {
+            const Socket socket;
+            const std::vector<char> data;
+            std::vector<char>::const_iterator read;
+            const bool kill;
 
-	private:
-		//! %Buffer type for receiving FastCGI records
-		struct fdBuffer
-		{
-			//! Buffer for header information
-			Protocol::Header headerBuffer;
-			//! Buffer of complete Message
-			Message messageBuffer;
-		};
+            Record(
+                    const Socket& socket_,
+                    std::vector<char>&& data_,
+                    bool kill_):
+                socket(socket_),
+                data(std::move(data_)),
+                read(data.cbegin()),
+                kill(kill_)
+            {}
+        };
 
-		//! %Buffer type for transmission of FastCGI records
-		/*!
-		 * This buffer is implemented as a circle of Chunk objects; the number of which can grow and shrink as needed. Write
-		 * space is requested with requestWrite() which thereby returns a Block which may be smaller
-		 * than requested. The write is committed by calling secureWrite(). A smaller space can be
-		 * committed than was given to write on.
-		 *
-		 * All data written to the buffer has an associated file descriptor through which it
-		 * is flushed. File descriptor association with data is managed through a queue of Frame
-		 * objects.
-		 */
-		class Buffer
-		{
-			//! %Frame of data associated with a file descriptor
-			struct Frame
-			{
-				//! Constructor
-				/*!
-				 * @param[in] size_ Size of the frame
-				 * @param[in] closeFd_ Boolean value indication whether or not the file descriptor should be closed when the frame has been flushed
-				 * @param[in] id_ Complete ID of the request making the frame
-				 */
-				Frame(size_t size_, bool closeFd_, Protocol::FullId id_): size(size_), closeFd(closeFd_), id(id_) { }
-				//! Size of the frame
-				size_t size;
-				//! Boolean value indication whether or not the file descriptor should be closed when the frame has been flushed
-				bool closeFd;
-				//! Complete ID (contains a file descriptor) of associated with the data frame
-				Protocol::FullId id;
-			};
-			//! Queue of frames waiting to be transmitted
-			std::queue<Frame> frames;
-			//! Minimum Block size value that can be returned from requestWrite()
-			const static unsigned int minBlockSize = 256;
-			//! %Chunk of data in Buffer
-			struct Chunk
-			{
-				//! Size of data section of the chunk
-				const static unsigned int size = 131072;
-				//! Pointer to the first byte in the chunk data
-				boost::shared_array<char> data;
-				//! Pointer to the first write byte in the chunk or 1+ the last read byte
-				char* end;
-				//! Creates a new data chunk
-				Chunk(): data(new char[size]()), end(data.get()) { }
-				~Chunk() { }
-				//! Creates a new object that shares the data of the old one
-				Chunk(const Chunk& chunk): data(chunk.data), end(data.get()) { }
-			};
+        //! %Buffer for transmitting data
+        std::deque<std::unique_ptr<Record>> m_sendBuffer;
 
-			//! A list of chunks. Can contain from 2-infinity
-			std::list<Chunk> chunks;
-			//! Iterator pointing to the chunk currently used for writing
-			std::list<Chunk>::iterator writeIt;
+        //! Thread safe the send buffer
+        std::mutex m_sendBufferMutex;
 
-			//! Current read spot in the buffer
-			char* pRead;
+        //! Function to call to pass messages to requests
+        const std::function<void(Protocol::RequestId, Message&&)> m_sendMessage;
 
-			//! A reference to Transceiver::pollFds for removing file descriptors when they are closed
-			std::vector<pollfd>& pollFds;
-			//! A reference to Transceiver::fdBuffer for deleting buffers upon closing of the file descriptor
-			std::map<int, fdBuffer>& fdBuffers;
-			//! Helper function for freeFd(int fd, std::vector<pollfd> pollFds, std::map<int, fdBuffer> fdBuffers)
-			void freeFd(int fd_) { Fastcgipp::Transceiver::freeFd(fd_, pollFds, fdBuffers);  }
-		public:
-			//! Constructor
-			/*!
-			 * @param[out] pollFds_ A reference to Transceiver::pollFds is needed for removing file descriptors when they are closed
-			 * @param[out] fdBuffers_ A reference to Transceiver::fdBuffer is needed for deleting buffers upon closing of the file descriptor
-			 */
-			Buffer(std::vector<pollfd>& pollFds_, std::map<int, fdBuffer>& fdBuffers_): chunks(1), writeIt(chunks.begin()), pRead(chunks.begin()->data.get()), pollFds(pollFds_), fdBuffers(fdBuffers_)  { }
+        //! Listen for connections with this
+        SocketGroup m_sockets;
 
-			//! Request a write block in the buffer
-			/*!
-			 * @param[in] size Requested size of write block
-			 * @return Block of writable memory. Size may be less than requested
-			 */
-			Block requestWrite(size_t size)
-			{
-				return Block(writeIt->end, std::min(size, (size_t)(writeIt->data.get()+Chunk::size-writeIt->end)));
-			}
-			//! Secure a write in the buffer
-			/*!
-			 * @param[in] size Amount of bytes to secure
-			 * @param[in] id Associated complete ID (contains file descriptor)
-			 * @param[in] kill Boolean value indicating whether or not the file descriptor should be closed after transmission
-			 */
-			void secureWrite(size_t size, Protocol::FullId id, bool kill);
+        //! Transmit all buffered data possible
+        /*!
+         * @return True if we successfully sent all data that was queued up.
+         */
+        inline bool transmit();
 
-			//! %Block of memory for extraction from Buffer
-			struct SendBlock
-			{
-				//! Constructor
-				/*!
-				 * @param[in] data_ Pointer to the first byte in the block
-				 * @param[in] size_ Size in bytes of the data
-				 * @param[in] fd_ File descriptor the data should be written to
-				 */
-				SendBlock(const char* data_, size_t size_, int fd_): data(data_), size(size_), fd(fd_) { }
-				//! Create a new object that shares the data of the old
-				SendBlock(const SendBlock& sendBlock): data(sendBlock.data), size(sendBlock.size), fd(sendBlock.fd) { }
-				//! Pointer to the first byte in the block
-				const char* data;
-				//! Size in bytes of the data
-				size_t size;
-				//! File descriptor the data should be written to
-				int fd;
-			};
+        //! Receive data on the specified socket.
+        inline void receive(Socket& socket);
 
-			//! Request a block of data for transmitting
-			/*!
-			 * @return A block of data with a file descriptor to transmit it out
-			 */
-			SendBlock requestRead()
-			{
-				return SendBlock(pRead, frames.empty()?0:frames.front().size, frames.empty()?-1:frames.front().id.fd);
-			}
-			//! Mark data in the buffer as transmitted and free it's memory
-			/*!
-			 * @param size Amount of bytes to mark as transmitted and free
-			 */
-			void freeRead(size_t size);
+        //! True when handler() should be terminating
+        std::atomic_bool m_terminate;
 
-			//! Test of the buffer is empty
-			/*!
-			 * @return true if the buffer is empty
-			 */
-			bool empty()
-			{
-				return pRead==writeIt->end;
-			}
-		};
+        //! True when handler() should be stopping
+        std::atomic_bool m_stop;
 
-		//! %Buffer for transmitting data
-		Buffer buffer;
-		//! Function to call to pass messages to requests
-		boost::function<void(Protocol::FullId, Message)> sendMessage;
+        //! Thread our handler is running in
+        std::thread m_thread;
 
-		//! poll() file descriptors container
-		std::vector<pollfd> pollFds;
-		//! Socket to listen for connections on
-		int socket;
-		//! Input file descriptor to the wakeup socket pair
-		int wakeUpFdIn;
-		//! Output file descriptor to the wakeup socket pair
-		int wakeUpFdOut;
+        //! Cleanup a dead socket
+        void cleanupSocket(const Socket& socket);
 
-		//! Container associating file descriptors with their receive buffers
-		std::map<int, fdBuffer> fdBuffers;
+#if FASTCGIPP_LOG_LEVEL > 3
+        //! Debug counter for locally killed sockets
+        std::atomic_ullong m_connectionKillCount;
 
-		//! Transmit all buffered data possible
-		int transmit();
+        //! Debug counter for remotely hung up sockets
+        std::atomic_ullong m_connectionRDHupCount;
 
-		//! Store the last socket exception
-		boost::optional<Exceptions::Socket> m_lastSocketException;
+        //! Debug counter for records sent
+        std::atomic_ullong m_recordsSent;
 
-	public:
-		//! Free fd/pipe and all it's associated resources
-		/*!
-		 * By calling this function you close the passed file descriptor
-		 * and free up it's associated buffers and resources. It is safe
-		 * to call this function at any time with any fd(even bad ones).
-		 * If requests still exists with this fd then they will be lost.
-		 *
-		 * @param fd File descriptor to delete/free up
-		 * @param pollFds Epoll container
-		 * @param fdBuffers Container of fd/pipe buffers
-		 */
-		static void freeFd(int fd, std::vector<pollfd>& pollFds, std::map<int, fdBuffer>& fdBuffers);
+        //! Debug counter for records queued for sending
+        std::atomic_ullong m_recordsQueued;
 
-		//! Helper function for freeFd(int fd, std::vector<pollfd> pollFds, std::map<int, fdBuffer> fdBuffers)
-		void freeFd(int fd_) { freeFd(fd_, pollFds, fdBuffers);  }
-
-		//! Reset the last socket exception to none.
-		void resetLastSocketException()
-		{
-			m_lastSocketException = boost::none;
-		}
-
-		//! Get the last socket exception
-		/*!
-		 * This can be used by the calling client to determine
-		 * if any exception occured while interacting with the socket.
-		 */
-		boost::optional<Exceptions::Socket> getLastSocketException() const
-		{
-			return m_lastSocketException;
-		}
-	};
-
-	//! Predicate for comparing the file descriptor of a pollfd
-	struct equalsFd : public std::unary_function<pollfd, bool>
-	{
-		int fd;
-		explicit equalsFd(int fd_): fd(fd_) {}
-		bool operator()(const pollfd& x) const { return x.fd==fd; };
-	};
-
-	//! Predicate for testing if the revents in a pollfd is non-zero
-	inline bool reventsZero(const pollfd& x)
-	{
-		return x.revents;
-	}
+        //! Debug counter for bytes received
+        std::atomic_ullong m_recordsReceived;
+#endif
+    };
 }
 
 #endif

@@ -1,49 +1,91 @@
-//! \file protocol.cpp Defines FastCGI protocol
-/***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
-* under the terms of the GNU Lesser General Public License as  published   *
-* by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
-* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
-* You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
-****************************************************************************/
+/*!
+ * @file       protocol.cpp
+ * @brief      Defines everything for relating to the FastCGI protocol itself.
+ * @author     Eddie Carle &lt;eddie@isatec.ca&gt;
+ * @date       April 25, 2016
+ * @copyright  Copyright &copy; 2016 Eddie Carle. This project is released under
+ *             the GNU Lesser General Public License Version 3.
+ */
 
+/*******************************************************************************
+* Copyright (C) 2016 Eddie Carle [eddie@isatec.ca]                             *
+*                                                                              *
+* This file is part of fastcgi++.                                              *
+*                                                                              *
+* fastcgi++ is free software: you can redistribute it and/or modify it under   *
+* the terms of the GNU Lesser General Public License as  published by the Free *
+* Software Foundation, either version 3 of the License, or (at your option)    *
+* any later version.                                                           *
+*                                                                              *
+* fastcgi++ is distributed in the hope that it will be useful, but WITHOUT ANY *
+* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS    *
+* FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for     *
+* more details.                                                                *
+*                                                                              *
+* You should have received a copy of the GNU Lesser General Public License     *
+* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.           *
+*******************************************************************************/
 
-#include <fastcgi++/protocol.hpp>
+#include "fastcgi++/protocol.hpp"
+#include "fastcgi++/config.h"
 
-void Fastcgipp::Protocol::processParamHeader(const char* data, size_t dataSize, const char*& name, size_t& nameSize, const char*& value, size_t& valueSize)
+bool Fastcgipp::Protocol::processParamHeader(
+        std::vector<char>::const_iterator data,
+        const std::vector<char>::const_iterator dataEnd,
+        std::vector<char>::const_iterator& name,
+        std::vector<char>::const_iterator& value,
+        std::vector<char>::const_iterator& end)
 {
-	if(*data>>7)
-	{
-		nameSize=readBigEndian(*(uint32_t*)data) & 0x7fffffff;
-		data+=sizeof(uint32_t);
-	}
-	else nameSize=*data++;
+    size_t nameSize;
+    size_t valueSize;
 
-	if(*data>>7)
-	{
-		valueSize=readBigEndian(*(uint32_t*)data) & 0x7fffffff;
-		data+=sizeof(uint32_t);
-	}
-	else valueSize=*data++;
-	name=data;
-	value=name+nameSize;
+    if(data>=dataEnd)
+        return false;
+    if(*data & 0x80)
+    {
+        const auto size=data;
+        data += sizeof(uint32_t);
+
+        if(data>dataEnd)
+            return false;
+
+        nameSize=BigEndian<uint32_t>::read(&*size) & 0x7fffffff;
+    }
+    else
+        nameSize=*data++;
+
+    if(data>=dataEnd)
+        return false;
+    if(*data & 0x80)
+    {
+        const auto size=data;
+        data += sizeof(uint32_t);
+
+        if(data>dataEnd)
+            return false;
+
+        valueSize=BigEndian<uint32_t>::read(&*size) & 0x7fffffff;
+    }
+    else
+        valueSize=*data++;
+
+    name = data;
+    value = name+nameSize;
+    end = value+valueSize;
+
+    if(end>dataEnd)
+        return false;
+    else
+        return true;
 }
 
-Fastcgipp::Protocol::ManagementReply<14, 2, 8> Fastcgipp::Protocol::maxConnsReply("FCGI_MAX_CONNS", "10");
-Fastcgipp::Protocol::ManagementReply<13, 2, 1> Fastcgipp::Protocol::maxReqsReply("FCGI_MAX_REQS", "50");
-Fastcgipp::Protocol::ManagementReply<15, 1, 8> Fastcgipp::Protocol::mpxsConnsReply("FCGI_MPXS_CONNS", "1");
+const Fastcgipp::Protocol::ManagementReply<14, 2>
+Fastcgipp::Protocol::maxConnsReply("FCGI_MAX_CONNS", "10");
 
-const char* Fastcgipp::Protocol::recordTypeLabels[] = { "INVALID", "BEGIN_REQUEST", "ABORT_REQUEST", "END_REQUEST", "PARAMS", "IN", "OUT", "ERR", "DATA", "GET_VALUES", "GET_VALUES_RESULT", "UNKNOWN_TYPE" };
+const Fastcgipp::Protocol::ManagementReply<13, 2>
+Fastcgipp::Protocol::maxReqsReply("FCGI_MAX_REQS", "50");
 
-const char Fastcgipp::version[]=PACKAGE_VERSION;
+const Fastcgipp::Protocol::ManagementReply<15, 1>
+Fastcgipp::Protocol::mpxsConnsReply("FCGI_MPXS_CONNS", "1");
+
+const char Fastcgipp::version[]=FASTCGIPP_VERSION;
