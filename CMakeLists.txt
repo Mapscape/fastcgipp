@@ -4,6 +4,16 @@ project(fastcgi++ CXX)
 set(VERSION "3.0alpha")
 string(TIMESTAMP BUILD_TIME UTC)
 
+INCLUDE_DIRECTORIES(
+    ${BOOST_RELEASE_DIR}/include
+)
+
+LINK_DIRECTORIES(
+    ${BOOST_RELEASE_DIR}/lib
+)
+
+SET(BOOST_LIBS boost_thread-mt boost_system-mt)
+
 # Set up our log level for fastcgi++/log.hpp
 if(NOT LOG_LEVEL)
     if(CMAKE_BUILD_TYPE STREQUAL "RELEASE")
@@ -30,11 +40,11 @@ endif()
 # Set compile flags for gcc and clang
 if(UNIX)
     set(CMAKE_CXX_FLAGS
-        "$ENV{CXXFLAGS} -std=c++14 -Wall -Werror -pthread")
+        "$ENV{CXXFLAGS} -std=c++11 -Wall -Werror -pthread")
     set(CMAKE_CXX_FLAGS_RELEASE
-        "$ENV{CXXFLAGS} -O3 -fomit-frame-pointer -std=c++14 -Wall -Werror -pthread")
+        "$ENV{CXXFLAGS} -O3 -fomit-frame-pointer -std=c++11 -Wall -Werror -pthread")
     set(CMAKE_CXX_FLAGS_DEBUG
-        "$ENV{CXXFLAGS} -Og -fno-omit-frame-pointer -g -ggdb -std=c++14 -Wall -Werror -pthread")
+        "$ENV{CXXFLAGS} -Og -fno-omit-frame-pointer -g -ggdb -std=c++11 -Wall -Werror -pthread")
 endif()
 
 include_directories(
@@ -58,6 +68,7 @@ add_library(fastcgipp SHARED
     src/request.cpp
     src/manager.cpp)
 install(TARGETS fastcgipp LIBRARY DESTINATION lib)
+TARGET_LINK_LIBRARIES(fastcgipp ${BOOST_LIBS})
 
 # Install the header file
 install(FILES

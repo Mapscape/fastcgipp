@@ -27,7 +27,9 @@
 *******************************************************************************/
 
 #include <locale>
-#include <codecvt>
+//#include <codecvt>
+#include <boost/locale/encoding_utf.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <utility>
 #include <sstream>
 #include <iomanip>
@@ -42,12 +44,14 @@ void Fastcgipp::Http::vecToString(
         std::vector<char>::const_iterator end,
         std::wstring& string)
 {
-    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+//    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
     try
     {
-        string = converter.from_bytes(&*start, &*end);
+//        string = converter.from_bytes(&*start, &*end);
+        string = boost::locale::conv::utf_to_utf<wchar_t>(&*start, &*end);
     }
-    catch(const std::range_error& e)
+//    catch(const std::range_error& e)
+    catch(const boost::locale::conv::conversion_error& e)
     {
         WARNING_LOG("Error in code conversion from utf8")
     }
@@ -304,12 +308,12 @@ template<class charT> void Fastcgipp::Http::Environment<charT>::fill(
             if(std::equal(name, value, "HTTP_IF_MODIFIED_SINCE"))
             {
                 std::stringstream dateStream;
-                std::tm time;
+                boost::posix_time::ptime time;
+
                 dateStream.write(&*value, end-value);
-                dateStream >> std::get_time(
-                        &time,
-                        "%a, %d %b %Y %H:%M:%S GMT");
-                ifModifiedSince = std::mktime(&time);
+                dateStream.imbue(std::locale(dateStream.getloc(), new boost::posix_time::time_input_facet("%a, %d %b %Y %H:%M:%S GMT")));
+                dateStream >> time;
+                ifModifiedSince = boost::posix_time::to_time_t(time);
             }
             break;
         }
@@ -337,28 +341,32 @@ template bool Fastcgipp::Http::Environment<char>::parsePostBuffer();
 template bool Fastcgipp::Http::Environment<wchar_t>::parsePostBuffer();
 template<class charT> bool Fastcgipp::Http::Environment<charT>::parsePostBuffer()
 {
-    static const std::string multipartStr("multipart/form-data");
-    static const std::string urlEncodedStr("application/x-www-form-urlencoded");
+    static const std::wstring multipartStr(L"multipart/form-data");
+    static const std::wstring urlEncodedStr(L"application/x-www-form-urlencoded");
 
     if(!m_postBuffer.size())
         return true;
 
     bool parsed = false;
 
-    if(std::equal(
-                multipartStr.cbegin(),
-                multipartStr.cend(),
-                contentType.cbegin(),
-                contentType.cend()))
+    std::wstring converted = boost::locale::conv::utf_to_utf<wchar_t>(contentType.c_str(), contentType.c_str()+contentType.length());
+
+//    if(std::equal(
+//                multipartStr.cbegin(),
+//                multipartStr.cend(),
+//                converted.cbegin(),
+//                converted.cend()))
+    if (converted == multipartStr)
     {
         parsePostsMultipart();
         parsed = true;
     }
-    else if(std::equal(
-                urlEncodedStr.cbegin(),
-                urlEncodedStr.cend(),
-                contentType.cbegin(),
-                contentType.cend()))
+//    else if(std::equal(
+//                urlEncodedStr.cbegin(),
+//                urlEncodedStr.cend(),
+//                converted.cbegin(),
+//                converted.cend()))
+    else if (converted == urlEncodedStr)
     {
         parsePostsUrlEncoded();
         parsed = true;

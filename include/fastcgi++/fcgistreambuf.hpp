@@ -33,6 +33,7 @@
 #include "fastcgi++/webstreambuf.hpp"
 
 #include <istream>
+#include <locale>
 
 //! Topmost namespace for the fastcgi++ library
 namespace Fastcgipp
@@ -110,6 +111,14 @@ namespace Fastcgipp
         typedef typename std::basic_streambuf<charT, traits>::int_type int_type;
         typedef typename std::basic_streambuf<charT, traits>::traits_type traits_type;
         typedef typename std::basic_streambuf<charT, traits>::char_type char_type;
+
+        class codecvt_imp : public std::codecvt<char_type, char, mbstate_t>
+        {
+            public:
+                ~codecvt_imp()
+                {
+                }
+        };
 
         int_type overflow(int_type c = traits_type::eof());
 

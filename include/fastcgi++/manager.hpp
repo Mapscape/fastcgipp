@@ -34,7 +34,9 @@
 #include <algorithm>
 #include <thread>
 #include <mutex>
-#include <shared_mutex>
+#include <condition_variable>
+#include <boost/thread/shared_mutex.hpp>
+//#include <shared_mutex>
 #include <memory>
 #include <functional>
 
@@ -193,7 +195,7 @@ namespace Fastcgipp
         Protocol::Requests<std::unique_ptr<Request_base>> m_requests;
 
         //! Thread safe our requests
-        std::shared_timed_mutex m_requestsMutex;
+        boost::shared_timed_mutex m_requestsMutex;
 
         //! Local messages
         std::queue<std::pair<Message, Socket>> m_messages;

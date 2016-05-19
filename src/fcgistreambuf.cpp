@@ -29,7 +29,7 @@
 #include "fastcgi++/fcgistreambuf.hpp"
 #include "fastcgi++/log.hpp"
 
-#include <codecvt>
+//#include <codecvt>
 #include <algorithm>
 
 namespace Fastcgipp
@@ -37,7 +37,7 @@ namespace Fastcgipp
     template <> bool
     Fastcgipp::FcgiStreambuf<wchar_t, std::char_traits<wchar_t>>::emptyBuffer()
     {
-        const std::codecvt_utf8<char_type> converter;
+        const codecvt_imp converter;
         std::codecvt_base::result result;
         std::vector<char> record;
         size_t count;

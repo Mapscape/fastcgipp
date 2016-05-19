@@ -259,11 +259,11 @@ void Fastcgipp::Manager_base::localHandler()
 
 void Fastcgipp::Manager_base::handler()
 {
-    std::unique_lock<std::shared_timed_mutex> requestsWriteLock(
+    std::unique_lock<boost::shared_timed_mutex> requestsWriteLock(
             m_requestsMutex,
             std::defer_lock);
     std::unique_lock<std::mutex> tasksLock(m_tasksMutex);
-    std::shared_lock<std::shared_timed_mutex> requestsReadLock(m_requestsMutex);
+    boost::shared_lock<boost::shared_timed_mutex> requestsReadLock(m_requestsMutex);
 
     while(!m_terminate && !(m_stop && m_requests.empty()))
     {
@@ -350,8 +350,8 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
 #if FASTCGIPP_LOG_LEVEL > 3
         ++m_badSocketMessageCount;
 #endif
-        std::lock_guard<std::shared_timed_mutex> lock(m_requestsMutex);
-        const auto range = m_requests.equal_range(id.m_socket);
+        std::lock_guard<boost::shared_timed_mutex> lock(m_requestsMutex);
+        const auto range = m_requests.equal_range(id);
         auto request = range.first;
         while(request != range.second)
         {
@@ -376,7 +376,7 @@ void Fastcgipp::Manager_base::push(Protocol::RequestId id, Message&& message)
 #if FASTCGIPP_LOG_LEVEL > 3
         ++m_messageCount;
 #endif
-        std::unique_lock<std::shared_timed_mutex> lock(m_requestsMutex);
+        std::unique_lock<boost::shared_timed_mutex> lock(m_requestsMutex);
         auto request = m_requests.find(id);
         if(request == m_requests.end())
         {

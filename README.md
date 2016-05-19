@@ -71,13 +71,13 @@ Then we make a build directory.
 
 Now we need run cmake.
 
-    cmake -DCMAKE_BUILD_TYPE=RELEASE ../fastcgi++
+    cmake -DCMAKE_BUILD_TYPE=RELEASE ../fastcgi++ -DBOOST_RELEASE_DIR=/path/to/boost/root
 
 Note that that was to do a release build. That means heavily optimized and not
 good for debugging. If you want to do some debugging to either fastcgi++ or an
 application you are developing that uses fastcgi++, do a debug build.
 
-    cmake -DCMAKE_BUILD_TYPE=DEBUG ../fastcgi++
+    cmake -DCMAKE_BUILD_TYPE=DEBUG ../fastcgi++ -DBOOST_RELEASE_DIR=/path/to/boost/roo
 
 Or if you want some really hardcore debug and diagnostics info
 

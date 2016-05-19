@@ -31,7 +31,9 @@
 #include <iomanip>
 #include <iostream>
 #include <ctime>
-#include <codecvt>
+//#include <codecvt>
+#include <boost/locale/encoding_utf.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 #include <cstring>
 #include <array>
 #include <sstream>
@@ -50,12 +52,13 @@ namespace Fastcgipp
         {
             char buffer[HOST_NAME_MAX+2];
             gethostname(buffer, sizeof(buffer));
-            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+//            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
             try
             {
-                return(converter.from_bytes(
-                            buffer,
-                            buffer+std::strlen(buffer)));
+                return boost::locale::conv::utf_to_utf<wchar_t>(buffer, buffer+std::strlen(buffer));
+//                return(converter.from_bytes(
+//                            buffer,
+//                            buffer+std::strlen(buffer)));
             }
             catch(const std::range_error& e)
             {
@@ -67,14 +70,17 @@ namespace Fastcgipp
 
         std::wstring getProgram()
         {
-            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+//            std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
             std::wostringstream ss;
             try
             {
-                ss << converter.from_bytes(
-                        program_invocation_name,
-                        program_invocation_name
-                            +std::strlen(program_invocation_name));
+//                ss << converter.from_bytes(
+//                        program_invocation_name,
+//                        program_invocation_name
+//                            +std::strlen(program_invocation_name));
+                return boost::locale::conv::utf_to_utf<wchar_t>(
+                            program_invocation_name,
+                            program_invocation_name + std::strlen(program_invocation_name));
             }
             catch(const std::range_error& e)
             {
@@ -107,7 +113,8 @@ std::wstring Fastcgipp::Logging::program(Fastcgipp::Logging::getProgram());
 void Fastcgipp::Logging::header(Level level)
 {
     const std::time_t now = std::time(nullptr);
+    logstream->imbue(std::locale(logstream->getloc(), new boost::posix_time::wtime_facet(L"%b %d %H:%M:%S ")));
     *logstream
-        << std::put_time(std::localtime(&now), L"%b %d %H:%M:%S ")
+        << std::localtime(&now)
         << hostname << ' ' << program << ' ' << levels[level];
 }
